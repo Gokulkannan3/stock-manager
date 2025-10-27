@@ -455,7 +455,7 @@ export default function GodownDetail() {
         className="fixed inset-0 flex items-center justify-center p-4 mobile:p-2"
         overlayClassName="fixed inset-0 bg-black/50 dark:bg-black/70"
       >
-        <div className="bg-white dark:bg-gray-900 rounded-lg p-6 mobile:p-4 max-w-4xl mobile:max-w-[90vw] w-1/2">
+        <div className="bg-white dark:bg-gray-900 rounded-lg p-6 mobile:p-4 max-w-4xl mobile:w-full w-1/2">
           <div className="flex justify-between items-center mb-4 mobile:mb-2">
             <h2 className="text-lg mobile:text-base font-bold text-gray-900 dark:text-gray-900">Stock History</h2>
             <button
@@ -473,13 +473,13 @@ export default function GodownDetail() {
             <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
               <thead className="bg-gray-50 dark:bg-gray-800">
                 <tr>
-                  <th className="px-6 py-3 mobile:px-4 mobile:py-2 text-left text-xs mobile:text-[10px] font-medium text-gray-500 dark:text-gray-100 uppercase tracking-wider">Sl. No</th>
-                  <th className="px-6 py-3 mobile:px-4 mobile:py-2 text-left text-xs mobile:text-[10px] font-medium text-gray-500 dark:text-gray-100 uppercase tracking-wider">Date</th>
-                  <th className="px-6 py-3 mobile:px-4 mobile:py-2 text-left text-xs mobile:text-[10px] font-medium text-gray-500 dark:text-gray-100 uppercase tracking-wider">Product Name</th>
-                  <th className="px-6 py-3 mobile:px-4 mobile:py-2 text-left text-xs mobile:text-[10px] font-medium text-gray-500 dark:text-gray-100 uppercase tracking-wider">Brand</th>
-                  <th className="px-6 py-3 mobile:px-4 mobile:py-2 text-left text-xs mobile:text-[10px] font-medium text-gray-500 dark:text-gray-100 uppercase tracking-wider">Action</th>
-                  <th className="px-6 py-3 mobile:px-4 mobile:py-2 text-left text-xs mobile:text-[10px] font-medium text-gray-500 dark:text-gray-100 uppercase tracking-wider">Case Count</th>
-                  <th className="px-6 py-3 mobile:px-4 mobile:py-2 text-left text-xs mobile:text-[10px] font-medium text-gray-500 dark:text-gray-100 uppercase tracking-wider">Total Quantity</th>
+                  <th className="px-6 py-3 mobile:px-4 mobile:py-2 text-left hundred:text-sm mobile:text-[10px] font-medium text-gray-500 dark:text-gray-100 uppercase tracking-wider"> No</th>
+                  <th className="px-6 py-3 mobile:px-4 mobile:py-2 text-left hundred:text-sm mobile:text-[10px] font-medium text-gray-500 dark:text-gray-100 uppercase tracking-wider">Date</th>
+                  <th className="px-6 py-3 mobile:px-4 mobile:py-2 text-left hundred:text-sm mobile:text-[10px] font-medium text-gray-500 dark:text-gray-100 uppercase tracking-wider">Product Name</th>
+                  <th className="px-6 py-3 mobile:px-4 mobile:py-2 text-left hundred:text-sm mobile:text-[10px] font-medium text-gray-500 dark:text-gray-100 uppercase tracking-wider">Brand</th>
+                  <th className="px-6 py-3 mobile:px-4 mobile:py-2 text-left hundred:text-sm mobile:text-[10px] font-medium text-gray-500 dark:text-gray-100 uppercase tracking-wider">Action</th>
+                  <th className="px-6 py-3 mobile:px-4 mobile:py-2 text-left hundred:text-sm mobile:text-[10px] font-medium text-gray-500 dark:text-gray-100 uppercase tracking-wider">Case Count</th>
+                  <th className="px-6 py-3 mobile:px-4 mobile:py-2 text-left hubdred:text-sm mobile:text-[10px] font-medium text-gray-500 dark:text-gray-100 uppercase tracking-wider">Total Quantity</th>
                 </tr>
               </thead>
               <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
