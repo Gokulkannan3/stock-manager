@@ -23,6 +23,9 @@ export default function Sidebar() {
         { name: 'View Stocks', path: '/viewstock', icon: <FaList className="mr-2" /> },
       ],
     },
+    {
+      name: 'Overall Stocks', path: '/analysis', icon: <FaChartBar className='mr-2'/>
+    }
   ];
 
   const toggleSidebar = () => {
