@@ -1,16 +1,13 @@
-// src/Components/Godown/ViewStock.jsx
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Sidebar from '../Sidebar/Sidebar';
 import Logout from '../Logout';
 import { API_BASE_URL } from '../../../Config';
 import { FaEye } from 'react-icons/fa';
-
 export default function ViewStock() {
   const [godowns, setGodowns] = useState([]);
   const [error, setError] = useState('');
   const navigate = useNavigate();
-
   const styles = {
     button: {
       background: "linear-gradient(135deg, rgba(2,132,199,0.9), rgba(14,165,233,0.95))",
@@ -22,7 +19,6 @@ export default function ViewStock() {
       boxShadowDark: "0 15px 35px rgba(59,130,246,0.4), inset 0 1px 0 rgba(255,255,255,0.1)"
     }
   };
-
   const fetchGodowns = async () => {
     try {
       const response = await fetch(`${API_BASE_URL}/api/godowns`);
@@ -32,17 +28,13 @@ export default function ViewStock() {
       setError('Failed to fetch godowns');
     }
   };
-
   useEffect(() => {
     fetchGodowns();
   }, []);
-
   const capitalize = str => str ? str.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ') : '';
-
   const handleViewGodown = (godownId) => {
     navigate(`/view-stocks/${godownId}`);
   };
-
   return (
     <div className="flex min-h-screen bg-gray-100 dark:bg-gray-900">
       <Sidebar />

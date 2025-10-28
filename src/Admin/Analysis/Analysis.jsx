@@ -40,31 +40,36 @@ export default function StockAnalysis() {
   const downloadExcel = () => {
     const wb = XLSX.utils.book_new();
 
-    const allWS = XLSX.utils.json_to_sheet(
+    /* ---------- 1. Current Stock (all rows) ---------- */
+    const currentWS = XLSX.utils.json_to_sheet(
       data.allRows.map((r, i) => ({
         '#': i + 1,
         Godown: capitalize(r.godown_name),
         Type: capitalize(r.product_type),
         Product: r.productname,
         Brand: capitalize(r.brand),
+        Agent: r.agent_name,
         Cases: r.cases,
         'Per Case': r.per_case,
         'Total Qty': r.total_qty,
       }))
     );
-    XLSX.utils.book_append_sheet(wb, allWS, 'All Stock');
+    XLSX.utils.book_append_sheet(wb, currentWS, 'Current Stock');
 
+    /* ---------- 2. Low Stock ---------- */
     const lowWS = XLSX.utils.json_to_sheet(
       data.lowStock.map((r, i) => ({
         '#': i + 1,
         Type: capitalize(r.product_type),
         Product: r.productname,
         Brand: capitalize(r.brand),
+        Agent: r.agent_name,
         'Total Cases': r.total_cases,
       }))
     );
     XLSX.utils.book_append_sheet(wb, lowWS, 'Low Stock');
 
+    /* ---------- 3. Godown Totals ---------- */
     const godownWS = XLSX.utils.json_to_sheet(
       data.godownSummary.map((r, i) => ({
         '#': i + 1,
@@ -74,12 +79,14 @@ export default function StockAnalysis() {
     );
     XLSX.utils.book_append_sheet(wb, godownWS, 'Godown Totals');
 
+    /* ---------- 4. Product Totals ---------- */
     const productWS = XLSX.utils.json_to_sheet(
       data.productSummary.map((r, i) => ({
         '#': i + 1,
         Type: capitalize(r.product_type),
         Product: r.productname,
         Brand: capitalize(r.brand),
+        Agent: r.agent_name,
         'Total Cases': r.total_cases,
         'Total Qty': r.total_qty,
       }))
@@ -114,7 +121,7 @@ export default function StockAnalysis() {
 
           {/* Low Stock Alert */}
           {data.lowStock.length > 0 && (
-            <div className="mb-8 mobile:mb-6 p-5 mobile:p-4 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg">
+            <div className="mb-8 mobile:mb-6 p-5 mobile:p-4 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800-dark-800 rounded-lg">
               <div className="flex mobile:flex-col mobile:gap-2 items-start justify-between mb-3 mobile:mb-2">
                 <div className="flex items-center gap-3 mobile:gap-2">
                   <FaExclamationTriangle className="text-red-600 text-xl mobile:text-lg" />
@@ -161,17 +168,17 @@ export default function StockAnalysis() {
                 <table className="min-w-full">
                   <thead className="bg-gray-50 dark:bg-gray-700">
                     <tr>
-                      <th className="px-4 mobile:px-3 py-3 mobile:py-2 text-left text-xs mobile:text-[10px] font-medium text-gray-500 dark:text-gray-300 uppercase">No</th>
-                      <th className="px-4 mobile:px-3 py-3 mobile:py-2 text-left text-xs mobile:text-[10px] font-medium text-gray-500 dark:text-gray-300 uppercase">Godown</th>
-                      <th className="px-4 mobile:px-3 py-3 mobile:py-2 text-left text-xs mobile:text-[10px] font-medium text-gray-500 dark:text-gray-300 uppercase">Total Cases</th>
+                      <th className="px-4 mobile:px-3 py-3 mobile:py-2 text-left hundred:text-lg mobile:text-[10px] text-gray-500 dark:text-gray-300 uppercase">No</th>
+                      <th className="px-4 mobile:px-3 py-3 mobile:py-2 text-left hundred:text-lg mobile:text-[10px] text-gray-500 dark:text-gray-300 uppercase">Godown</th>
+                      <th className="px-4 mobile:px-3 py-3 mobile:py-2 text-left hundred:text-lg mobile:text-[10px] text-gray-500 dark:text-gray-300 uppercase">Total Cases</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                     {data.godownSummary.map((g, i) => (
                       <tr key={i}>
-                        <td className="px-4 mobile:px-3 py-3 mobile:py-2 text-sm mobile:text-xs text-black dark:text-white">{i + 1}</td>
-                        <td className="px-4 mobile:px-3 py-3 mobile:py-2 text-sm mobile:text-xs text-black dark:text-white">{capitalize(g.godown_name)}</td>
-                        <td className="px-4 mobile:px-3 py-3 mobile:py-2 text-sm mobile:text-xs font-medium text-indigo-600 dark:text-indigo-400">
+                        <td className="px-4 mobile:px-3 py-3 mobile:py-2 hundred:text-lg mobile:text-xs text-black dark:text-white">{i + 1}</td>
+                        <td className="px-4 mobile:px-3 py-3 mobile:py-2 hundred:text-lg mobile:text-xs text-black dark:text-white">{capitalize(g.godown_name)}</td>
+                        <td className="px-4 mobile:px-3 py-3 mobile:py-2 hundred:text-lg mobile:text-xs text-indigo-600 dark:text-indigo-400">
                           {g.total_cases}
                         </td>
                       </tr>
@@ -187,26 +194,28 @@ export default function StockAnalysis() {
             <h2 className="text-xl mobile:text-lg font-semibold mb-4 mobile:mb-3 text-gray-800 dark:text-gray-200">
               Total Cases per Product
             </h2>
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden mb-10">
               <div className="overflow-x-auto">
                 <table className="min-w-full">
                   <thead className="bg-gray-50 dark:bg-gray-700">
                     <tr>
-                      <th className="px-4 mobile:px-3 py-3 mobile:py-2 text-left text-xs mobile:text-[10px] font-medium text-gray-500 dark:text-gray-300 uppercase">#</th>
-                      <th className="px-4 mobile:px-3 py-3 mobile:py-2 text-left text-xs mobile:text-[10px] font-medium text-gray-500 dark:text-gray-300 uppercase">Type</th>
-                      <th className="px-4 mobile:px-3 py-3 mobile:py-2 text-left text-xs mobile:text-[10px] font-medium text-gray-500 dark:text-gray-300 uppercase">Product</th>
-                      <th className="px-4 mobile:px-3 py-3 mobile:py-2 text-left text-xs mobile:text-[10px] font-medium text-gray-500 dark:text-gray-300 uppercase">Brand</th>
-                      <th className="px-4 mobile:px-3 py-3 mobile:py-2 text-left text-xs mobile:text-[10px] font-medium text-gray-500 dark:text-gray-300 uppercase">Cases</th>
+                      <th className="px-4 mobile:px-3 py-3 mobile:py-2 text-left hundred:text-lg mobile:text-[10px] text-gray-500 dark:text-gray-300 uppercase">No</th>
+                      <th className="px-4 mobile:px-3 py-3 mobile:py-2 text-left hundred:text-lg mobile:text-[10px] text-gray-500 dark:text-gray-300 uppercase">Type</th>
+                      <th className="px-4 mobile:px-3 py-3 mobile:py-2 text-left hundred:text-lg mobile:text-[10px] text-gray-500 dark:text-gray-300 uppercase">Product</th>
+                      <th className="px-4 mobile:px-3 py-3 mobile:py-2 text-left hundred:text-lg mobile:text-[10px] text-gray-500 dark:text-gray-300 uppercase">Brand</th>
+                      <th className="px-4 mobile:px-3 py-3 mobile:py-2 text-left hundred:text-lg mobile:text-[10px] text-gray-500 dark:text-gray-300 uppercase">Agent</th>
+                      <th className="px-4 mobile:px-3 py-3 mobile:py-2 text-left hundred:text-lg mobile:text-[10px] text-gray-500 dark:text-gray-300 uppercase">Cases</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                     {data.productSummary.map((p, i) => (
                       <tr key={i}>
-                        <td className="px-4 mobile:px-3 py-3 mobile:py-2 text-sm mobile:text-xs text-black dark:text-white">{i + 1}</td>
-                        <td className="px-4 mobile:px-3 py-3 mobile:py-2 text-sm mobile:text-xs text-black dark:text-white">{capitalize(p.product_type)}</td>
-                        <td className="px-4 mobile:px-3 py-3 mobile:py-2 text-sm mobile:text-xs text-black dark:text-white">{p.productname}</td>
-                        <td className="px-4 mobile:px-3 py-3 mobile:py-2 text-sm mobile:text-xs text-black dark:text-white">{capitalize(p.brand)}</td>
-                        <td className="px-4 mobile:px-3 py-3 mobile:py-2 text-sm mobile:text-xs font-medium text-green-600 dark:text-green-400">
+                        <td className="px-4 mobile:px-3 py-3 mobile:py-2 hundred:text-lg mobile:text-xs text-black dark:text-white">{i + 1}</td>
+                        <td className="px-4 mobile:px-3 py-3 mobile:py-2 hundred:text-lg mobile:text-xs text-black dark:text-white">{capitalize(p.product_type)}</td>
+                        <td className="px-4 mobile:px-3 py-3 mobile:py-2 hundred:text-lg mobile:text-xs text-black dark:text-white">{p.productname}</td>
+                        <td className="px-4 mobile:px-3 py-3 mobile:py-2 hundred:text-lg mobile:text-xs text-black dark:text-white">{capitalize(p.brand)}</td>
+                        <td className="px-4 mobile:px-3 py-3 mobile:py-2 hundred:text-lg mobile:text-xs text-sky-300">{p.agent_name}</td>
+                        <td className="px-4 mobile:px-3 py-3 mobile:py-2 hundred:text-lg mobile:text-xs text-green-600 dark:text-green-400">
                           {p.total_cases}
                         </td>
                       </tr>
@@ -235,6 +244,7 @@ export default function StockAnalysis() {
                     <tr>
                       <th className="px-4 mobile:px-3 py-2 mobile:py-1.5 text-left text-xs mobile:text-[10px] font-medium text-gray-500 dark:text-gray-300 uppercase">Product</th>
                       <th className="px-4 mobile:px-3 py-2 mobile:py-1.5 text-left text-xs mobile:text-[10px] font-medium text-gray-500 dark:text-gray-300 uppercase">Brand</th>
+                      <th className="px-4 mobile:px-3 py-2 mobile:py-1.5 text-left text-xs mobile:text-[10px] font-medium text-gray-500 dark:text-gray-300 uppercase">Agent</th>
                       <th className="px-4 mobile:px-3 py-2 mobile:py-1.5 text-left text-xs mobile:text-[10px] font-medium text-gray-500 dark:text-gray-300 uppercase">Cases</th>
                     </tr>
                   </thead>
@@ -243,6 +253,7 @@ export default function StockAnalysis() {
                       <tr key={i}>
                         <td className="px-4 mobile:px-3 py-2 mobile:py-1.5 text-sm mobile:text-xs text-black dark:text-white">{item.productname}</td>
                         <td className="px-4 mobile:px-3 py-2 mobile:py-1.5 text-sm mobile:text-xs text-black dark:text-white">{capitalize(item.brand)}</td>
+                        <td className="px-4 mobile:px-3 py-2 mobile:py-1.5 text-sm mobile:text-xs text-sky-300">{item.agent_name}</td>
                         <td className="px-4 mobile:px-3 py-2 mobile:py-1.5 text-sm mobile:text-xs font-bold text-red-600">
                           {item.total_cases}
                         </td>

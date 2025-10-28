@@ -1,9 +1,9 @@
 // src/Components/Godown/Godown.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Sidebar from '../Sidebar/Sidebar';
 import Logout from '../Logout';
 import { API_BASE_URL } from '../../../Config';
-import { FaPlus } from 'react-icons/fa';
+import { FaPlus, FaSpinner } from 'react-icons/fa';
 
 export default function Godown() {
   const [godowns, setGodowns] = useState([]);
@@ -16,6 +16,7 @@ export default function Godown() {
   const [casesAdded, setCasesAdded] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const styles = {
     input: {
@@ -36,85 +37,94 @@ export default function Godown() {
     },
   };
 
-  const fetchGodowns = async () => {
+  // Safe capitalize function
+  const capitalize = (str) => {
+    if (!str || typeof str !== 'string') return '';
+    return str
+      .toLowerCase()
+      .split('_')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
+  };
+
+  const fetchGodowns = useCallback(async () => {
     try {
       const response = await fetch(`${API_BASE_URL}/api/godowns`);
       if (!response.ok) throw new Error('Failed to fetch godowns');
       const data = await response.json();
       setGodowns(data);
     } catch (err) {
-      setError('Failed to fetch godowns');
-      console.error('Error fetching godowns:', err.message);
+      setError('Failed to load godowns');
     }
-  };
+  }, []);
 
-  const fetchProductTypes = async () => {
+  const fetchProductTypes = useCallback(async () => {
     try {
       const response = await fetch(`${API_BASE_URL}/api/product-types`);
-      if (!response.ok) throw new Error('Failed to fetch product types');
+      if (!response.ok) throw new Error('Failed');
       const data = await response.json();
-      setProductTypes(data.map(item => item.product_type));
+      setProductTypes(data.map(item => item.product_type).filter(Boolean));
     } catch (err) {
-      setError('Failed to fetch product types');
-      console.error('Error fetching product types:', err.message);
+      setError('Failed to load types');
     }
-  };
+  }, []);
 
   const fetchProductsByType = async (type) => {
+    if (!type) {
+      setProducts([]);
+      return;
+    }
     try {
       const response = await fetch(`${API_BASE_URL}/api/products/${type}`);
-      if (!response.ok) throw new Error('Failed to fetch products for type');
+      if (!response.ok) throw new Error('Failed');
       const data = await response.json();
       setProducts(data);
     } catch (err) {
-      setError('Failed to fetch products for type');
-      console.error('Error fetching products:', err.message);
+      setError('Failed to load products');
     }
   };
 
   useEffect(() => {
     fetchGodowns();
     fetchProductTypes();
-  }, []);
+  }, [fetchGodowns, fetchProductTypes]);
 
   const handleCreateGodown = async () => {
-    if (!newGodownName) {
-      setError('Godown name is required');
-      return;
-    }
+    if (!newGodownName.trim()) return setError('Name required');
+    setLoading(true);
+    setError('');
     try {
-      const response = await fetch(`${API_BASE_URL}/api/godowns`, {
+      const res = await fetch(`${API_BASE_URL}/api/godowns`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newGodownName }),
+        body: JSON.stringify({ name: newGodownName.trim() }),
       });
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to create godown');
-      }
-      setSuccess('Godown created successfully');
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+      setSuccess('Godown created');
       setNewGodownName('');
-      setError('');
-      fetchGodowns();
+      await fetchGodowns();
     } catch (err) {
       setError(err.message);
-      console.error('Error creating godown:', err.message);
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleAddStock = async () => {
     if (!selectedGodown || !selectedProductType || !selectedProduct || !casesAdded) {
-      setError('All fields are required');
-      return;
+      return setError('All fields required');
     }
-    const casesAddedNum = parseInt(casesAdded, 10);
-    if (isNaN(casesAddedNum) || casesAddedNum <= 0) {
-      setError('Cases must be a positive number');
-      return;
-    }
+    const casesNum = parseInt(casesAdded, 10);
+    if (isNaN(casesNum) || casesNum <= 0) return setError('Valid cases required');
+
+    setLoading(true);
+    setError('');
+    setSuccess('');
+
     try {
       const { productname, brand } = JSON.parse(selectedProduct);
-      const response = await fetch(`${API_BASE_URL}/api/godowns/${selectedGodown}/stock`, {
+      const res = await fetch(`${API_BASE_URL}/api/godowns/${selectedGodown}/stock`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -122,185 +132,173 @@ export default function Godown() {
           product_type: selectedProductType,
           productname,
           brand,
-          cases_added: casesAddedNum,
+          cases_added: casesNum,
         }),
       });
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to add stock');
-      }
-      setSuccess('Stock added successfully');
-      setSelectedGodown('');
-      setSelectedProductType('');
-      setSelectedProduct('');
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+
+      setSuccess('Stock added!');
       setCasesAdded('');
-      setError('');
-      fetchGodowns();
+      setSelectedProduct('');
+      await fetchGodowns();
     } catch (err) {
       setError(err.message);
-      console.error('Error adding stock:', err.message);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const capitalize = str => (str ? str.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ') : '');
-
   const calculateTotalItems = () => {
-    if (!selectedProduct || !casesAdded) return 'Select product and cases';
-    const casesAddedNum = parseInt(casesAdded, 10);
-    if (isNaN(casesAddedNum) || casesAddedNum <= 0) return 'Enter valid cases';
-    const { productname, brand } = JSON.parse(selectedProduct);
-    const product = products.find(p => p.productname === productname && p.brand === brand);
-    if (!product) return 'Select product';
-    return product.per_case * casesAddedNum;
+    if (!selectedProduct || !casesAdded) return '—';
+    const cases = parseInt(casesAdded, 10);
+    if (isNaN(cases) || cases <= 0) return '—';
+    try {
+      const { productname, brand } = JSON.parse(selectedProduct);
+      const product = products.find(p => p.productname === productname && p.brand === brand);
+      return product ? product.per_case * cases : '—';
+    } catch {
+      return '—';
+    }
   };
 
   return (
     <div className="flex min-h-screen bg-gray-100 dark:bg-gray-900">
       <Sidebar />
       <Logout />
-      <div className="flex-1 p-6 pt-16">
+      <div className="flex-1 p-4 pt-16">
         <div className="max-w-4xl mx-auto">
-          <h2 className="text-2xl text-center font-bold text-gray-900 dark:text-gray-100 mb-6">Add Godown and Stock</h2>
-          {error && <div className="mb-4 text-red-600 dark:text-red-400 text-sm text-center">{error}</div>}
-          {success && <div className="mb-4 text-green-600 dark:text-green-400 text-sm text-center">{success}</div>}
-          <div className="space-y-8">
-            <div className="border-b border-gray-900/10 dark:border-gray-700 pb-8">
-              <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4">Create Godown</h3>
-              <div className="grid grid-cols-1 gap-x-6 gap-y-8 sm:grid-cols-6">
-                <div className="sm:col-span-4">
-                  <label htmlFor="new-godown-name" className="block text-sm font-medium text-gray-900 dark:text-gray-300">
-                    Godown Name
-                  </label>
-                  <div className="mt-2 flex gap-x-4">
-                    <input
-                      type="text"
-                      id="new-godown-name"
-                      value={newGodownName}
-                      onChange={(e) => setNewGodownName(e.target.value)}
-                      className="block w-full rounded-md bg-white dark:bg-gray-900 px-3 py-1.5 text-base text-gray-900 dark:text-gray-900 border border-gray-300 dark:border-gray-600 placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 dark:focus:outline-blue-500 sm:text-sm"
-                      style={{ background: styles.input.background, border: styles.input.border, backdropFilter: styles.input.backdropFilter }}
-                      placeholder="Enter godown name"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleCreateGodown}
-                      className="rounded-full w-8 h-7 flex justify-center items-center text-white dark:text-gray-100 font-semibold shadow-xs hover:bg-gray-900 dark:hover:bg-gray-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 dark:focus-visible:outline-blue-500"
-                      style={{ background: styles.button.background, border: styles.button.border, boxShadow: styles.button.boxShadow }}
-                    >
-                      <FaPlus className="h-4 w-4" />
-                    </button>
-                  </div>
-                </div>
+          {/* Page Title */}
+          <h2 className="text-xl font-bold text-center text-gray-900 dark:text-gray-100 mb-4">Godown & Stock</h2>
+
+          {/* Messages */}
+          {error && <div className="mb-3 p-2 bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-200 rounded text-xs text-center">{error}</div>}
+          {success && <div className="mb-3 p-2 bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-200 rounded text-xs text-center">{success}</div>}
+
+          <div className="space-y-6">
+
+            {/* Create Godown */}
+            <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
+              <h3 className="text-md font-semibold mb-2 text-black dark:text-white">Create Godown</h3>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={newGodownName}
+                  onChange={(e) => setNewGodownName(e.target.value)}
+                  placeholder="Name"
+                  className="flex-1 rounded px-2 py-1.5 text-xs border"
+                  style={styles.input}
+                  disabled={loading}
+                />
+                <button
+                  onClick={handleCreateGodown}
+                  disabled={loading}
+                  className="px-3 py-1.5 rounded text-white text-xs font-medium flex items-center gap-1 disabled:opacity-50"
+                  style={styles.button}
+                >
+                  {loading ? <FaSpinner className="animate-spin h-3 w-3" /> : <FaPlus className="h-3 w-3" />}
+                  Add
+                </button>
               </div>
             </div>
-            <div className="border-b border-gray-900/10 dark:border-gray-700 pb-8">
-              <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4">Add Product to Godown</h3>
-              <div className="mt-6 grid grid-cols-1 gap-x-6 gap-y-8 sm:grid-cols-6">
-                <div className="sm:col-span-3">
-                  <label htmlFor="select-godown" className="block text-sm font-medium text-gray-900 dark:text-gray-300">
-                    Select Godown
-                  </label>
+
+            {/* Add Stock Form */}
+            <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
+              <h3 className="text-md font-semibold mb-3 text-black dark:text-white">Add Stock</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                <div>
+                  <label className="block mb-1 text-black dark:text-white">Godown</label>
                   <select
-                    id="select-godown"
                     value={selectedGodown}
                     onChange={(e) => setSelectedGodown(e.target.value)}
-                    className="block w-full rounded-md bg-white dark:bg-gray-900 px-3 py-1.5 text-base text-gray-900 dark:text-gray-900 border border-gray-300 dark:border-gray-600 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 dark:focus:outline-blue-500 sm:text-sm"
-                    style={{ background: styles.input.background, border: styles.input.border, backdropFilter: styles.input.backdropFilter }}
+                    className="w-full rounded px-2 py-1.5 border text-sm"
+                    style={styles.input}
+                    disabled={loading}
                   >
                     <option value="">Select</option>
                     {godowns.map(g => (
-                      <option key={g.id} value={g.id}>{capitalize(g.name)}</option>
+                      <option key={g.id} value={g.id}>{capitalize(g.name || '')}</option>
                     ))}
                   </select>
                 </div>
-                <div className="sm:col-span-3">
-                  <label htmlFor="select-product-type" className="block text-sm font-medium text-gray-900 dark:text-gray-300">
-                    Select Product Type
-                  </label>
+
+                <div>
+                  <label className="block font-medium mb-1 text-black dark:text-white">Type</label>
                   <select
-                    id="select-product-type"
                     value={selectedProductType}
                     onChange={(e) => {
                       setSelectedProductType(e.target.value);
                       setSelectedProduct('');
-                      if (e.target.value) {
-                        fetchProductsByType(e.target.value);
-                      } else {
-                        setProducts([]);
-                      }
+                      fetchProductsByType(e.target.value);
                     }}
-                    className="block w-full rounded-md bg-white dark:bg-gray-900 px-3 py-1.5 text-base text-gray-900 dark:text-gray-900 border border-gray-300 dark:border-gray-600 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 dark:focus:outline-blue-500 sm:text-sm"
-                    style={{ background: styles.input.background, border: styles.input.border, backdropFilter: styles.input.backdropFilter }}
+                    className="w-full rounded px-2 py-1.5 border text-sm"
+                    style={styles.input}
+                    disabled={loading}
                   >
                     <option value="">Select</option>
-                    {productTypes.map(type => (
-                      <option key={type} value={type}>{capitalize(type)}</option>
+                    {productTypes.map(t => (
+                      <option key={t} value={t}>{capitalize(t)}</option>
                     ))}
                   </select>
                 </div>
-                <div className="sm:col-span-3">
-                  <label htmlFor="select-product" className="block text-sm font-medium text-gray-900 dark:text-gray-300">
-                    Select Product (Brand)
-                  </label>
+
+                <div>
+                  <label className="block font-medium mb-1 text-black dark:text-white">Product</label>
                   <select
-                    id="select-product"
                     value={selectedProduct}
                     onChange={(e) => setSelectedProduct(e.target.value)}
-                    className="block w-full rounded-md bg-white dark:bg-gray-900 px-3 py-1.5 text-base text-gray-900 dark:text-gray-900 border border-gray-300 dark:border-gray-600 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 dark:focus:outline-blue-500 sm:text-sm"
-                    style={{ background: styles.input.background, border: styles.input.border, backdropFilter: styles.input.backdropFilter }}
+                    className="w-full rounded px-2 py-1.5 border text-sm"
+                    style={styles.input}
+                    disabled={loading || !selectedProductType}
                   >
                     <option value="">Select</option>
                     {products.map(p => (
-                      <option key={`${p.productname}-${p.brand}`} value={JSON.stringify({ productname: p.productname, brand: p.brand })}>
-                        {`${p.productname} (${capitalize(p.brand)})`}
+                      <option
+                        key={`${p.productname}-${p.brand}`}
+                        value={JSON.stringify({ productname: p.productname, brand: p.brand })}
+                      >
+                        {p.productname} ({capitalize(p.brand || '')})
                       </option>
                     ))}
                   </select>
                 </div>
-                <div className="sm:col-span-3">
-                  <label htmlFor="cases-added" className="block text-sm font-medium text-gray-900 dark:text-gray-300">
-                    Cases Added
-                  </label>
+
+                <div>
+                  <label className="block font-medium mb-1 text-black dark:text-white">Cases</label>
                   <input
                     type="number"
-                    id="cases-added"
                     value={casesAdded}
                     onChange={(e) => setCasesAdded(e.target.value)}
-                    className="block w-full rounded-md bg-white dark:bg-gray-900 px-3 py-1.5 text-base text-gray-900 dark:text-gray-900 border border-gray-300 dark:border-gray-600 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 dark:focus:outline-blue-500 sm:text-sm"
-                    style={{ background: styles.input.background, border: styles.input.border, backdropFilter: styles.input.backdropFilter }}
-                    placeholder="Enter cases"
+                    placeholder="10"
                     min="1"
+                    className="w-full rounded px-2 py-1.5 border text-sm"
+                    style={styles.input}
+                    disabled={loading}
                   />
                 </div>
-                <div className="sm:col-span-3">
-                  <label className="block text-sm font-medium text-gray-900 dark:text-gray-300">
-                    Total Items
-                  </label>
-                  <p className="mt-2 text-base text-gray-900 dark:text-gray-100">
-                    {calculateTotalItems()}
-                  </p>
+
+                <div className="sm:col-span-2">
+                  <label className="block font-medium mb-1 text-black dark:text-white">Total Items</label>
+                  <p className="text-lg font-bold text-blue-600 dark:text-blue-400">{calculateTotalItems()}</p>
                 </div>
               </div>
+
               <button
                 onClick={handleAddStock}
-                className="mt-4 rounded-md px-3 py-2 text-sm font-semibold text-white dark:text-gray-100 shadow-sm hover:bg-indigo-700 dark:hover:bg-blue-600"
-                style={{ background: styles.button.background, border: styles.button.border, boxShadow: styles.button.boxShadow }}
+                disabled={loading || !selectedGodown || !selectedProduct}
+                className="mt-3 w-full px-4 py-2 rounded text-white text-xs font-medium disabled:opacity-50 flex items-center justify-center gap-2"
+                style={styles.button}
               >
-                Add Stock
+                {loading ? (
+                  <>Adding... <FaSpinner className="animate-spin h-3 w-3" /></>
+                ) : (
+                  'Add Stock'
+                )}
               </button>
             </div>
           </div>
         </div>
       </div>
-      <style>{`
-        .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-        [style*="backgroundDark"] { background: var(--bg, ${styles.input.background}); }
-        [style*="backgroundDark"][data-dark] { --bg: ${styles.input.backgroundDark}; }
-        [style*="borderDark"] { border: var(--border, ${styles.input.border}); }
-        [style*="borderDark"][data-dark] { --border: ${styles.input.borderDark}; }
-        [style*="boxShadowDark"] { box-shadow: var(--shadow, ${styles.button.boxShadow}); }
-        [style*="boxShadowDark"][data-dark] { --shadow: ${styles.button.boxShadowDark}; }
-      `}</style>
     </div>
   );
 }

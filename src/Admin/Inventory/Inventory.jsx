@@ -2,8 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { FiLogOut } from 'react-icons/fi';
 import Sidebar from '../Sidebar/Sidebar';
 import { API_BASE_URL } from '../../../Config';
-import { FaPlus } from 'react-icons/fa';
+import { FaPlus, FaEdit, FaTrash } from 'react-icons/fa';
 import Logout from '../Logout';
+import Modal from 'react-modal';
+
+Modal.setAppElement('#root');
 
 export default function Inventory() {
   const [focused, setFocused] = useState({});
@@ -12,9 +15,19 @@ export default function Inventory() {
   const [newProductType, setNewProductType] = useState('');
   const [productTypes, setProductTypes] = useState([]);
   const [newBrand, setNewBrand] = useState('');
+  const [newAgentName, setNewAgentName] = useState('');
   const [brands, setBrands] = useState([]);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+
+  // Brand cards
+  const [brandSearch, setBrandSearch] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const brandsPerPage = 10;
+
+  // Edit modal
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editingBrand, setEditingBrand] = useState({ id: '', name: '', agent_name: '' });
 
   const styles = {
     input: { 
@@ -39,13 +52,12 @@ export default function Inventory() {
     try {
       const response = await fetch(`${API_BASE_URL}/api/product-types`);
       const data = await response.json();
-      if (!response.ok) throw new Error(data.message || 'Failed to fetch product types');
+      if (!response.ok) throw new Error(data.message || 'Failed');
       const validTypes = data
         .filter(item => item && item.product_type && typeof item.product_type === 'string')
         .map(item => item.product_type);
       setProductTypes(validTypes);
     } catch (err) {
-      console.error('Error fetching product types:', err);
       setError(err.message);
     }
   };
@@ -54,13 +66,9 @@ export default function Inventory() {
     try {
       const response = await fetch(`${API_BASE_URL}/api/brands`);
       const data = await response.json();
-      if (!response.ok) throw new Error(data.message || 'Failed to fetch brands');
-      const validBrands = data
-        .filter(item => item && item.name && typeof item.name === 'string')
-        .map(item => item.name);
-      setBrands(validBrands);
+      if (!response.ok) throw new Error(data.message || 'Failed');
+      setBrands(data.map(b => ({ id: b.id, name: b.name, agent_name: b.agent_name || '' })));
     } catch (err) {
-      console.error('Error fetching brands:', err);
       setError(err.message);
     }
   };
@@ -75,98 +83,57 @@ export default function Inventory() {
     return () => clearInterval(intervalId);
   }, []);
 
-  const handleFocus = (inputId) => {
-    setFocused((prev) => ({ ...prev, [inputId]: true }));
-  };
+  const handleFocus = (id) => setFocused(prev => ({ ...prev, [id]: true }));
+  const handleBlur = (id) => setFocused(prev => ({ ...prev, [id]: values[id] !== '' }));
+  const handleChange = (id, e) => setValues(prev => ({ ...prev, [id]: e.target.value }));
 
-  const handleBlur = (inputId) => {
-    setFocused((prev) => ({ ...prev, [inputId]: values[inputId] !== '' }));
-  };
-
-  const handleChange = (inputId, event) => {
-    setValues((prev) => ({ ...prev, [inputId]: event.target.value }));
-  };
-
-  const handleProductTypeChange = (event) => {
-    setProductType(event.target.value);
+  const handleProductTypeChange = (e) => {
+    setProductType(e.target.value);
     setValues({ productName: '', price: '', caseCount: '', perCase: '', brand: '' });
-    setFocused({});
-    setError('');
-    setSuccess('');
-  };
-
-  const handleNewProductTypeChange = (event) => {
-    setNewProductType(event.target.value);
-  };
-
-  const handleNewBrandChange = (event) => {
-    setNewBrand(event.target.value);
+    setError(''); setSuccess('');
   };
 
   const handleCreateBrand = async () => {
-    if (!newBrand) {
-      setError('Brand name is required');
-      return;
-    }
-    const formattedBrand = newBrand.toLowerCase().replace(/\s+/g, '_');
-    if (brands.includes(formattedBrand)) {
-      setError('Brand already exists');
-      return;
-    }
+    if (!newBrand) return setError('Brand name is required');
+    const formatted = newBrand.toLowerCase().replace(/\s+/g, '_');
+    if (brands.some(b => b.name === formatted)) return setError('Brand already exists');
+
     try {
-      const response = await fetch(`${API_BASE_URL}/api/brands`, {
+      const res = await fetch(`${API_BASE_URL}/api/brands`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ brand: formattedBrand }),
+        body: JSON.stringify({ brand: formatted, agent_name: newAgentName }),
       });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.message || 'Failed to create brand');
-      setBrands([...brands, formattedBrand]);
-      setNewBrand('');
-      setSuccess('Brand created successfully!');
-      setError('');
-    } catch (err) {
-      setError(err.message);
-    }
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+      fetchBrands();
+      setNewBrand(''); setNewAgentName(''); setSuccess('Brand created!');
+    } catch (err) { setError(err.message); }
   };
 
   const handleCreateProductType = async () => {
-    if (!newProductType) {
-      setError('Product type name is required');
-      return;
-    }
-    const formattedProductType = newProductType.toLowerCase().replace(/\s+/g, '_');
-    if (productTypes.includes(formattedProductType)) {
-      setError('Product type already exists');
-      return;
-    }
+    if (!newProductType) return setError('Product type is required');
+    const formatted = newProductType.toLowerCase().replace(/\s+/g, '_');
+    if (productTypes.includes(formatted)) return setError('Product type exists');
+
     try {
-      const response = await fetch(`${API_BASE_URL}/api/product-types`, {
+      const res = await fetch(`${API_BASE_URL}/api/product-types`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ product_type: formattedProductType }),
+        body: JSON.stringify({ product_type: formatted }),
       });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.message || 'Failed to create product type');
-      setProductTypes([...productTypes, formattedProductType]);
-      setNewProductType('');
-      setSuccess('Product type created successfully!');
-      setError('');
-    } catch (err) {
-      setError(err.message);
-    }
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+      fetchProductTypes();
+      setNewProductType(''); setSuccess('Product type created!');
+    } catch (err) { setError(err.message); }
   };
 
-  const handleSubmit = async (event) => {
-    event.preventDefault();
-    setError('');
-    setSuccess('');
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!values.productName || !values.price || !values.caseCount || !values.perCase || !values.brand || !productType)
+      return setError('All fields required');
 
-    if (!values.productName || !values.price || !values.caseCount || !values.perCase || !values.brand || !productType) {
-      setError('Please fill in all required fields');
-      return;
-    }
-  
     const payload = {
       productname: values.productName,
       price: values.price,
@@ -177,272 +144,306 @@ export default function Inventory() {
     };
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/products`, {
+      const res = await fetch(`${API_BASE_URL}/api/products`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.message || 'Failed to save product');
-
-      setSuccess('Product saved successfully!');
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+      setSuccess('Product saved!');
       setValues({ productName: '', price: '', caseCount: '', perCase: '', brand: '' });
-      event.target.reset();
-    } catch (err) {
-      setError(err.message);
-    }
+    } catch (err) { setError(err.message); }
   };
 
-  const formatProductTypeDisplay = (type) => {
-    if (!type || typeof type !== 'string') return 'Unknown Type';
-    return type
-      .split('_')
-      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(' ');
+  const handleEditBrand = (brand) => {
+    setEditingBrand(brand);
+    setEditModalOpen(true);
   };
 
-  const formatBrandDisplay = (brand) => {
-    if (!brand || typeof brand !== 'string') return 'Unknown Brand';
-    return brand
-      .split('_')
-      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(' ');
+  const handleUpdateBrand = async () => {
+    const formatted = editingBrand.name.toLowerCase().replace(/\s+/g, '_');
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/brands/${editingBrand.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ brand: formatted, agent_name: editingBrand.agent_name }),
+      });
+      if (!res.ok) throw new Error('Failed to update');
+      fetchBrands();
+      setEditModalOpen(false);
+      setSuccess('Brand updated!');
+    } catch (err) { setError(err.message); }
   };
 
-  const renderFormFields = () => {
-    if (!productType) return null;
-    return (
-      <>
-        <div className="sm:col-span-3">
-          <label htmlFor="product-name" className="block text-sm font-medium text-gray-900 dark:text-gray-300">
-            Product Name*
-          </label>
-          <div className="mt-2">
-            <input
-              type="text"
-              id="product-name"
-              required
-              value={values.productName || ''}
-              onChange={(e) => handleChange('productName', e)}
-              onFocus={() => handleFocus('productName')}
-              onBlur={() => handleBlur('productName')}
-              className="block w-full rounded-md bg-white dark:bg-gray-900 px-3 py-1.5 text-base text-gray-900 dark:text-gray-800 border border-gray-300 dark:border-gray-600 placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 dark:focus:outline-blue-500 sm:text-sm"
-              style={{ background: styles.input.background, backgroundDark: styles.input.backgroundDark, border: styles.input.border, borderDark: styles.input.borderDark, backdropFilter: styles.input.backdropFilter }}
-            />
-          </div>
-        </div>
-        <div className="sm:col-span-3">
-          <label htmlFor="price" className="block text-sm font-medium text-gray-900 dark:text-gray-300">
-            Price (INR)*
-          </label>
-          <div className="mt-2">
-            <input
-              type="number"
-              id="price"
-              required
-              min="0"
-              step="0.01"
-              value={values.price || ''}
-              onChange={(e) => handleChange('price', e)}
-              onFocus={() => handleFocus('price')}
-              onBlur={() => handleBlur('price')}
-              className="block w-full rounded-md bg-white dark:bg-gray-900 px-3 py-1.5 text-base text-gray-900 dark:text-gray-800 border border-gray-300 dark:border-gray-600 placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 dark:focus:outline-blue-500 sm:text-sm"
-              style={{ background: styles.input.background, backgroundDark: styles.input.backgroundDark, border: styles.input.border, borderDark: styles.input.borderDark, backdropFilter: styles.input.backdropFilter }}
-            />
-          </div>
-        </div>
-        <div className="sm:col-span-3">
-          <label htmlFor="case-count" className="block text-sm font-medium text-gray-900 dark:text-gray-300">
-            Case Count*
-          </label>
-          <div className="mt-2">
-            <input
-              type="number"
-              id="case-count"
-              required
-              min="0"
-              step="1"
-              value={values.caseCount || ''}
-              onChange={(e) => handleChange('caseCount', e)}
-              onFocus={() => handleFocus('caseCount')}
-              onBlur={() => handleBlur('caseCount')}
-              className="block w-full rounded-md bg-white dark:bg-gray-900 px-3 py-1.5 text-base text-gray-900 dark:text-gray-800 border border-gray-300 dark:border-gray-600 placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 dark:focus:outline-blue-500 sm:text-sm"
-              style={{ background: styles.input.background, backgroundDark: styles.input.backgroundDark, border: styles.input.border, borderDark: styles.input.borderDark, backdropFilter: styles.input.backdropFilter }}
-            />
-          </div>
-        </div>
-        <div className="sm:col-span-3">
-          <label htmlFor="per-case" className="block text-sm font-medium text-gray-900 dark:text-gray-300">
-            Per Case*
-          </label>
-          <div className="mt-2">
-            <input
-              type="number"
-              id="per-case"
-              required
-              min="0"
-              step="1"
-              value={values.perCase || ''}
-              onChange={(e) => handleChange('perCase', e)}
-              onFocus={() => handleFocus('perCase')}
-              onBlur={() => handleBlur('perCase')}
-              className="block w-full rounded-md bg-white dark:bg-gray-900 px-3 py-1.5 text-base text-gray-900 dark:text-gray-800 border border-gray-300 dark:border-gray-600 placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 dark:focus:outline-blue-500 sm:text-sm"
-              style={{ background: styles.input.background, backgroundDark: styles.input.backgroundDark, border: styles.input.border, borderDark: styles.input.borderDark, backdropFilter: styles.input.backdropFilter }}
-            />
-          </div>
-        </div>
-        <div className="sm:col-span-3">
-          <label htmlFor="brand" className="block text-sm font-medium text-gray-900 dark:text-gray-300">
-            Brand*
-          </label>
-          <div className="mt-2">
-            <select
-              id="brand"
-              required
-              value={values.brand || ''}
-              onChange={(e) => handleChange('brand', e)}
-              onFocus={() => handleFocus('brand')}
-              onBlur={() => handleBlur('brand')}
-              className="block w-full rounded-md bg-white dark:bg-gray-900 px-3 py-1.5 text-base text-gray-900 dark:text-gray-800 border border-gray-300 dark:border-gray-600 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 dark:focus:outline-blue-500 sm:text-sm"
-              style={{ background: styles.input.background, backgroundDark: styles.input.backgroundDark, border: styles.input.border, borderDark: styles.input.borderDark, backdropFilter: styles.input.backdropFilter }}
-            >
-              <option value="">Select</option>
-              {brands.map(brand => (
-                <option key={brand} value={brand} className="bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100">
-                  {formatBrandDisplay(brand)}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-      </>
-    );
+  const handleDeleteBrand = async (id) => {
+    if (!window.confirm('Delete this brand?')) return;
+    try {
+      await fetch(`${API_BASE_URL}/api/brands/${id}`, { method: 'DELETE' });
+      fetchBrands();
+      setSuccess('Brand deleted!');
+    } catch (err) { setError(err.message); }
   };
+
+  const formatDisplay = (str) => str
+    ? str.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
+    : '';
+
+  const filteredBrands = brands.filter(b =>
+    b.name.toLowerCase().includes(brandSearch.toLowerCase()) ||
+    (b.agent_name && b.agent_name.toLowerCase().includes(brandSearch.toLowerCase()))
+  );
+
+  const totalPages = Math.ceil(filteredBrands.length / brandsPerPage);
+  const paginatedBrands = filteredBrands.slice(
+    (currentPage - 1) * brandsPerPage,
+    currentPage * brandsPerPage
+  );
 
   return (
     <div className="flex min-h-screen bg-gray-100 dark:bg-gray-900">
       <Sidebar />
       <Logout />
-      <div className="flex-1 p-6 pt-16">
+      <div className="flex-1 p-6 mobile:p-4 pt-16 mobile:pt-14">
         <div className="max-w-4xl mx-auto">
-          <h2 className="text-2xl text-center font-bold text-gray-900 dark:text-gray-100 mb-6">Add Items</h2>
-          {error && <div className="mb-4 text-red-600 dark:text-red-400 text-sm text-center">{error}</div>}
-          {success && <div className="mb-4 text-green-600 dark:text-green-400 text-sm text-center">{success}</div>}
-          <div className="space-y-8">
-            <div className="border-b border-gray-900/10 dark:border-gray-700 pb-8">
-              <div className="mt-6 grid grid-cols-1 gap-x-6 gap-y-8 sm:grid-cols-6">
-                <div className="sm:col-span-4">
-                  <label htmlFor="new-brand" className="block text-sm font-medium text-gray-900 dark:text-gray-300">
-                    Create New Brand
-                  </label>
-                  <div className="mt-2 flex gap-x-4">
+          {/* PAGE TITLE */}
+          <h2 className="text-3xl mobile:text-2xl text-center font-bold text-gray-900 dark:text-gray-100 mb-6 mobile:mb-4">Add Items</h2>
+          
+          {error && <div className="mb-5 mobile:mb-4 text-red-600 dark:text-red-400 text-base mobile:text-sm text-center font-medium">{error}</div>}
+          {success && <div className="mb-5 mobile:mb-4 text-green-600 dark:text-green-400 text-base mobile:text-sm text-center font-medium">{success}</div>}
+
+          <div className="space-y-10 mobile:space-y-8">
+
+            {/* Create Brand & Product Type */}
+            <div className="border-b border-gray-900/10 dark:border-gray-700 pb-10 mobile:pb-8">
+              <div className="grid grid-cols-1 gap-8 mobile:gap-6">
+
+                {/* Create New Brand */}
+                <div>
+                  <label className="block text-base mobile:text-sm font-semibold text-gray-900 dark:text-gray-300 mb-2">Create New Brand</label>
+                  <div className="flex flex-col sm:flex-row gap-4 mobile:gap-3">
                     <input
                       type="text"
-                      id="new-brand"
                       value={newBrand}
-                      onChange={handleNewBrandChange}
-                      className="block w-full rounded-md bg-white dark:bg-gray-900 px-3 py-1.5 text-base text-gray-900 dark:text-gray-800 border border-gray-300 dark:border-gray-600 placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 dark:focus:outline-blue-500 sm:text-sm"
-                      style={{ background: styles.input.background, backgroundDark: styles.input.backgroundDark, border: styles.input.border, borderDark: styles.input.borderDark, backdropFilter: styles.input.backdropFilter }}
-                      placeholder="Enter brand name"
+                      onChange={e => setNewBrand(e.target.value)}
+                      placeholder="Brand name"
+                      className="flex-1 rounded-lg px-4 mobile:px-3 py-3 mobile:py-2.5 text-lg mobile:text-base border border-gray-300 dark:border-gray-600 placeholder:text-gray-500 dark:placeholder:text-gray-400"
+                      style={{ background: styles.input.background, border: styles.input.border, backdropFilter: styles.input.backdropFilter }}
                     />
-                    <button
-                      type="button"
-                      onClick={handleCreateBrand}
-                      className="rounded-full w-8 h-7 flex justify-center items-center text-white dark:text-gray-100 font-semibold shadow-xs hover:bg-gray-900 dark:hover:bg-gray-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 dark:focus-visible:outline-blue-500"
-                      style={{ background: styles.button.background, backgroundDark: styles.button.backgroundDark, border: styles.button.border, borderDark: styles.button.borderDark, boxShadow: styles.button.boxShadow, boxShadowDark: styles.button.boxShadowDark }}
-                    >
-                      <FaPlus className="h-4 w-4" />
-                    </button>
-                  </div>
-                </div>
-                <div className="sm:col-span-4">
-                  <label htmlFor="new-product-type" className="block text-sm font-medium text-gray-900 dark:text-gray-300">
-                    Create New Product Type
-                  </label>
-                  <div className="mt-2 flex gap-x-4">
                     <input
                       type="text"
-                      id="new-product-type"
-                      value={newProductType}
-                      onChange={handleNewProductTypeChange}
-                      className="block w-full rounded-md bg-white dark:bg-gray-900 px-3 py-1.5 text-base text-gray-900 dark:text-gray-800 border border-gray-300 dark:border-gray-600 placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 dark:focus:outline-blue-500 sm:text-sm"
-                      style={{ background: styles.input.background, backgroundDark: styles.input.backgroundDark, border: styles.input.border, borderDark: styles.input.borderDark, backdropFilter: styles.input.backdropFilter }}
-                      placeholder="Enter product type name"
+                      value={newAgentName}
+                      onChange={e => setNewAgentName(e.target.value)}
+                      placeholder="Agent name"
+                      className="flex-1 rounded-lg px-4 mobile:px-3 py-3 mobile:py-2.5 text-lg mobile:text-base border border-gray-300 dark:border-gray-600"
+                      style={{ background: styles.input.background, border: styles.input.border, backdropFilter: styles.input.backdropFilter }}
                     />
                     <button
-                      type="button"
-                      onClick={handleCreateProductType}
-                      className="rounded-full w-8 h-7 flex justify-center items-center text-white dark:text-gray-100 font-semibold shadow-xs hover:bg-gray-900 dark:hover:bg-gray-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 dark:focus-visible:outline-blue-500"
-                      style={{ background: styles.button.background, backgroundDark: styles.button.backgroundDark, border: styles.button.border, borderDark: styles.button.borderDark, boxShadow: styles.button.boxShadow, boxShadowDark: styles.button.boxShadowDark }}
+                      onClick={handleCreateBrand}
+                      className="w-full sm:w-auto rounded-lg px-6 mobile:px-4 py-3 mobile:py-2.5 text-base mobile:text-sm font-semibold text-white flex items-center justify-center gap-2 shadow-md"
+                      style={{ background: styles.button.background, border: styles.button.border, boxShadow: styles.button.boxShadow }}
                     >
-                      <FaPlus className="h-4 w-4" />
+                      <FaPlus className="h-5 w-5 mobile:h-4 mobile:w-4" /> Add Brand
                     </button>
                   </div>
                 </div>
-                <div className="sm:col-span-4">
-                  <label htmlFor="product-type" className="block text-sm font-medium text-gray-900 dark:text-gray-300">
-                    Select Product Type
-                  </label>
-                  <div className="mt-2">
-                    <select
-                      id="product-type"
-                      value={productType}
-                      onChange={handleProductTypeChange}
-                      className="block w-full rounded-md bg-white dark:bg-gray-900 px-3 py-1.5 text-base text-gray-900 dark:text-gray-800 border border-gray-300 dark:border-gray-600 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 dark:focus:outline-blue-500 sm:text-sm"
-                      style={{ background: styles.input.background, backgroundDark: styles.input.backgroundDark, border: styles.input.border, borderDark: styles.input.borderDark, backdropFilter: styles.input.backdropFilter }}
+
+                {/* Create New Product Type */}
+                <div>
+                  <label className="block text-base mobile:text-sm font-semibold text-gray-900 dark:text-gray-300 mb-2">Create New Product Type</label>
+                  <div className="flex gap-4 mobile:gap-3">
+                    <input
+                      type="text"
+                      value={newProductType}
+                      onChange={e => setNewProductType(e.target.value)}
+                      placeholder="Product type"
+                      className="flex-1 rounded-lg px-4 mobile:px-3 py-3 mobile:py-2.5 text-lg mobile:text-base border border-gray-300 dark:border-gray-600"
+                      style={{ background: styles.input.background, border: styles.input.border, backdropFilter: styles.input.backdropFilter }}
+                    />
+                    <button
+                      onClick={handleCreateProductType}
+                      className="rounded-lg px-6 mobile:px-4 py-3 mobile:py-2.5 text-base mobile:text-sm font-semibold text-white flex items-center justify-center gap-2 shadow-md"
+                      style={{ background: styles.button.background, border: styles.button.border, boxShadow: styles.button.boxShadow }}
                     >
-                      <option value="">Select</option>
-                      {productTypes.map(type => (
-                        <option key={type} value={type} className="bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100">
-                          {formatProductTypeDisplay(type)}
-                        </option>
+                      <FaPlus className="h-5 w-5 mobile:h-4 mobile:w-4" /> Add Type
+                    </button>
+                  </div>
+                </div>
+
+                {/* Select Product Type */}
+                <div>
+                  <label className="block text-base mobile:text-sm font-semibold text-gray-900 dark:text-gray-300 mb-2">Select Product Type</label>
+                  <select
+                    value={productType}
+                    onChange={handleProductTypeChange}
+                    className="w-full rounded-lg px-4 mobile:px-3 py-3 mobile:py-2.5 text-lg mobile:text-base border border-gray-300 dark:border-gray-600"
+                    style={{ background: styles.input.background, border: styles.input.border, backdropFilter: styles.input.backdropFilter }}
+                  >
+                    <option value="">Select Type</option>
+                    {productTypes.map(t => (
+                      <option key={t} value={t} className="text-base">{formatDisplay(t)}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Product Form */}
+            {productType && (
+              <form onSubmit={handleSubmit} className="space-y-8 mobile:space-y-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mobile:gap-5">
+                  {['productName', 'price', 'caseCount', 'perCase'].map(field => (
+                    <div key={field}>
+                      <label className="block text-base mobile:text-sm font-semibold text-gray-900 dark:text-gray-300 mb-2">
+                        {field === 'productName' ? 'Product Name*' : field === 'price' ? 'Price (INR)*' : field === 'caseCount' ? 'Case Count*' : 'Per Case*'}
+                      </label>
+                      <input
+                        type={field.includes('price') ? 'number' : field.includes('Count') || field.includes('Case') ? 'number' : 'text'}
+                        value={values[field] || ''}
+                        onChange={e => handleChange(field, e)}
+                        onFocus={() => handleFocus(field)}
+                        onBlur={() => handleBlur(field)}
+                        min="0"
+                        step={field === 'price' ? '0.01' : '1'}
+                        required
+                        className="w-full rounded-lg px-4 mobile:px-3 py-3 mobile:py-2.5 text-lg mobile:text-base border border-gray-300 dark:border-gray-600"
+                        style={{ background: styles.input.background, border: styles.input.border, backdropFilter: styles.input.backdropFilter }}
+                      />
+                    </div>
+                  ))}
+                  <div>
+                    <label className="block text-base mobile:text-sm font-semibold text-gray-900 dark:text-gray-300 mb-2">Brand*</label>
+                    <select
+                      value={values.brand || ''}
+                      onChange={e => handleChange('brand', e)}
+                      required
+                      className="w-full rounded-lg px-4 mobile:px-3 py-3 mobile:py-2.5 text-lg mobile:text-base border border-gray-300 dark:border-gray-600"
+                      style={{ background: styles.input.background, border: styles.input.border, backdropFilter: styles.input.backdropFilter }}
+                    >
+                      <option value="">Select Brand</option>
+                      {brands.map(b => (
+                        <option key={b.id} value={b.name} className="text-base">{formatDisplay(b.name)}</option>
                       ))}
                     </select>
                   </div>
                 </div>
-              </div>
-            </div>
-            {productType ? (
-              <>
-                <div className="border-b border-gray-900/10 dark:border-gray-700 pb-8">
-                  <div className="mt-6 grid grid-cols-1 gap-x-6 gap-y-8 sm:grid-cols-6">
-                    {renderFormFields()}
-                  </div>
-                </div>
-                <div className="flex justify-end gap-x-6">
-                  <button
-                    type="button"
-                    className="text-sm cursor-pointer font-semibold text-gray-900 dark:text-gray-100"
-                    onClick={() => {
-                      setValues({ productName: '', price: '', caseCount: '', perCase: '', brand: '' });
-                      setProductType('');
-                    }}
-                  >
+                <div className="flex justify-end gap-4 mobile:gap-3">
+                  <button type="button" onClick={() => { setValues({}); setProductType(''); }} className="text-base mobile:text-sm font-medium text-gray-900 dark:text-gray-100">
                     Cancel
                   </button>
-                  <button
-                    type="submit"
-                    onClick={handleSubmit}
-                    className="rounded-md cursor-pointer text-white dark:text-gray-100 px-3 py-2 text-sm font-semibold shadow-xs hover:bg-gray-900 dark:hover:bg-gray-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 dark:focus-visible:outline-blue-500"
-                    style={{ background: styles.button.background, backgroundDark: styles.button.backgroundDark, border: styles.button.border, borderDark: styles.button.borderDark, boxShadow: styles.button.boxShadow, boxShadowDark: styles.button.boxShadowDark }}
-                  >
-                    Save
+                  <button type="submit" className="rounded-lg px-6 mobile:px-4 py-3 mobile:py-2.5 text-base mobile:text-sm font-semibold text-white shadow-md"
+                    style={{ background: styles.button.background, border: styles.button.border, boxShadow: styles.button.boxShadow }}>
+                    Save Product
                   </button>
                 </div>
-              </>
-            ) : (
-              <div className="flex justify-center items-center">
-                <p className="text-lg text-center font-medium text-gray-900 dark:text-gray-100">
-                  Please select or create a product type to add items
-                </p>
-              </div>
+              </form>
             )}
+
+            {/* Brand Cards */}
+            <div className="mt-12 mobile:mt-10">
+              <h3 className="text-2xl mobile:text-xl font-bold mb-5 mobile:mb-4 text-gray-900 dark:text-gray-100">All Brands</h3>
+              <input
+                type="text"
+                value={brandSearch}
+                onChange={e => { setBrandSearch(e.target.value); setCurrentPage(1); }}
+                placeholder="Search brand or agent..."
+                className="w-full mb-6 mobile:mb-5 rounded-lg px-4 mobile:px-3 py-3 mobile:py-2.5 text-lg mobile:text-base border border-gray-300 dark:border-gray-600"
+                style={{ background: styles.input.background, border: styles.input.border, backdropFilter: styles.input.backdropFilter }}
+              />
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mobile:gap-5">
+                {paginatedBrands.map(b => (
+                  <div key={b.id} className="bg-white dark:bg-gray-800 p-5 mobile:p-4 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700">
+                    <div className="flex justify-between items-start mb-3">
+                      <h4 className="font-bold text-base mobile:text-sm text-gray-900 dark:text-gray-100">{formatDisplay(b.name)}</h4>
+                      <div className="flex gap-3">
+                        <button onClick={() => handleEditBrand(b)} className="text-blue-600 hover:text-blue-800">
+                          <FaEdit className="h-5 w-5 mobile:h-4 mobile:w-4" />
+                        </button>
+                        <button onClick={() => handleDeleteBrand(b.id)} className="text-red-600 hover:text-red-800">
+                          <FaTrash className="h-5 w-5 mobile:h-4 mobile:w-4" />
+                        </button>
+                      </div>
+                    </div>
+                    {b.agent_name && (
+                      <p className="text-sm mobile:text-xs text-gray-600 dark:text-gray-400 font-medium">Agent: <span className="font-normal">{b.agent_name}</span></p>
+                    )}
+                  </div>
+                ))}
+              </div>
+              {totalPages > 1 && (
+                <div className="mt-8 mobile:mt-6 flex justify-center gap-4 items-center">
+                  <button
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                    className="px-5 mobile:px-4 py-2.5 mobile:py-2 text-base mobile:text-sm font-medium rounded-lg border disabled:opacity-50 disabled:cursor-not-allowed"
+                    style={currentPage > 1 ? { background: styles.button.background, color: 'white', border: styles.button.border } : {}}
+                  >
+                    Previous
+                  </button>
+                  <span className="text-base mobile:text-sm font-medium">Page {currentPage} of {totalPages}</span>
+                  <button
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                    className="px-5 mobile:px-4 py-2.5 mobile:py-2 text-base mobile:text-sm font-medium rounded-lg border disabled:opacity-50 disabled:cursor-not-allowed"
+                    style={currentPage < totalPages ? { background: styles.button.background, color: 'white', border: styles.button.border } : {}}
+                  >
+                    Next
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
+
+      {/* Edit Modal */}
+      <Modal
+        isOpen={editModalOpen}
+        onRequestClose={() => setEditModalOpen(false)}
+        className="fixed inset-0 flex items-center justify-center p-6 mobile:p-4 z-50"
+        overlayClassName="fixed inset-0 bg-black/60"
+      >
+        <div className="bg-white dark:bg-gray-800 rounded-xl p-8 mobile:p-6 max-w-lg w-full shadow-2xl">
+          <h3 className="text-xl mobile:text-lg font-bold mb-6 mobile:mb-5 text-gray-900 dark:text-gray-100">Edit Brand</h3>
+          <div className="space-y-5 mobile:space-y-4">
+            <div>
+              <label className="block text-base mobile:text-sm font-semibold text-gray-900 dark:text-gray-300 mb-2">Brand Name</label>
+              <input
+                type="text"
+                value={formatDisplay(editingBrand.name)}
+                onChange={e => setEditingBrand({ ...editingBrand, name: e.target.value.replace(/\s+/g, '_').toLowerCase() })}
+                className="w-full rounded-lg px-4 mobile:px-3 py-3 mobile:py-2.5 text-lg mobile:text-base border border-gray-300 dark:border-gray-600"
+                style={{ background: styles.input.background, border: styles.input.border }}
+              />
+            </div>
+            <div>
+              <label className="block text-base mobile:text-sm font-semibold text-gray-900 dark:text-gray-300 mb-2">Agent Name</label>
+              <input
+                type="text"
+                value={editingBrand.agent_name}
+                onChange={e => setEditingBrand({ ...editingBrand, agent_name: e.target.value })}
+                placeholder="Agent name"
+                className="w-full rounded-lg px-4 mobile:px-3 py-3 mobile:py-2.5 text-lg mobile:text-base border border-gray-300 dark:border-gray-600"
+                style={{ background: styles.input.background, border: styles.input.border }}
+              />
+            </div>
+          </div>
+          <div className="mt-8 mobile:mt-6 flex justify-end gap-4">
+            <button onClick={() => setEditModalOpen(false)} className="px-5 mobile:px-4 py-2.5 mobile:py-2 text-base mobile:text-sm font-medium text-gray-700 dark:text-gray-300">
+              Cancel
+            </button>
+            <button
+              onClick={handleUpdateBrand}
+              className="px-6 mobile:px-5 py-2.5 mobile:py-2 text-base mobile:text-sm font-semibold text-white rounded-lg shadow-md"
+              style={{ background: styles.button.background, border: styles.button.border, boxShadow: styles.button.boxShadow }}
+            >
+              Update Brand
+            </button>
+          </div>
+        </div>
+      </Modal>
+
       <style>{`
-        .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
         [style*="backgroundDark"] { background: var(--bg, ${styles.input.background}); }
         [style*="backgroundDark"][data-dark] { --bg: ${styles.input.backgroundDark}; }
         [style*="borderDark"] { border: var(--border, ${styles.input.border}); }

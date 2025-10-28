@@ -7,6 +7,7 @@ import Godown from './Admin/Godown/Godown';
 import ViewStock from './Admin/Godown/ViewStock';
 import GodownDetail from './Admin/Godown/GodownDetail';
 import Analysis from './Admin/Analysis/Analysis';
+import Search from './Admin/Search/Search';
 
 const AllRoutes = () => {
   return (
@@ -20,6 +21,7 @@ const AllRoutes = () => {
         <Route path="/analysis" element={<Analysis />} />
         <Route path="/viewstock" element={<ViewStock />} />
         <Route path="/view-stocks/:godownId" element={<GodownDetail />} />
+        <Route path="/search" element={<Search />} />
       </Route>
     </Routes>
   );
