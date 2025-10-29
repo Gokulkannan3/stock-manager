@@ -1,7 +1,7 @@
 // src/Components/Sidebar/Sidebar.jsx
 import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { FaBox, FaList, FaChartBar, FaSearch, FaUsers, FaMapMarkerAlt, FaBars, FaTimes, FaLocationArrow, FaShoppingCart, FaTruck, FaImage, FaTag, FaPlus, FaWarehouse, FaAngleDown, FaAngleUp } from 'react-icons/fa';
+import { FaBox, FaList, FaChartBar, FaSearch, FaChartLine, FaBars, FaTimes, FaLocationArrow, FaShoppingCart, FaTruck, FaImage, FaTag, FaPlus, FaWarehouse, FaAngleDown, FaAngleUp } from 'react-icons/fa';
 
 export default function Sidebar() {
   const [isOpen, setIsOpen] = useState(false);
@@ -28,6 +28,9 @@ export default function Sidebar() {
     },
     {
       name: 'Search product', path: '/search', icon: <FaSearch className='mr-2'/>
+    },
+    {
+      name: 'Analytics', path: '/analytics', icon: <FaChartLine className='mr-2'/>
     }
   ];
 

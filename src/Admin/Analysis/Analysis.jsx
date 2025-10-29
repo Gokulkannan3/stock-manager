@@ -4,7 +4,7 @@ import Sidebar from '../Sidebar/Sidebar';
 import Logout from '../Logout';
 import { API_BASE_URL } from '../../../Config';
 import * as XLSX from 'xlsx';
-import { FaDownload, FaExclamationTriangle, FaEye } from 'react-icons/fa';
+import { FaDownload, FaExclamationTriangle, FaEye, FaSpinner } from 'react-icons/fa';
 import Modal from 'react-modal';
 
 Modal.setAppElement('#root');
@@ -96,9 +96,29 @@ export default function StockAnalysis() {
     XLSX.writeFile(wb, `Stock_Analysis_${new Date().toISOString().slice(0,10)}.xlsx`);
   };
 
-  if (loading) return <div className="p-8 text-center text-lg mobile:text-base">Loading analysis...</div>;
+  // ──────────────────────────────────────────────────────────────
+  // NEW LOADER (centered spinner + sidebar)
+  // ──────────────────────────────────────────────────────────────
+  if (loading) {
+    return (
+      <div className="flex min-h-screen bg-gray-100 dark:bg-gray-900">
+        <Sidebar />
+        <Logout />
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <FaSpinner className="animate-spin text-5xl text-blue-600 mb-4" />
+            <p className="text-lg text-gray-600 dark:text-gray-300">Loading analysis...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (error) return <div className="p-8 text-center text-red-600 text-lg mobile:text-base">{error}</div>;
 
+  // ──────────────────────────────────────────────────────────────
+  // Rest of your component (unchanged)
+  // ──────────────────────────────────────────────────────────────
   return (
     <div className="flex min-h-screen bg-gray-100 dark:bg-gray-900">
       <Sidebar />

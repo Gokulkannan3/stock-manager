@@ -8,6 +8,7 @@ import ViewStock from './Admin/Godown/ViewStock';
 import GodownDetail from './Admin/Godown/GodownDetail';
 import Analysis from './Admin/Analysis/Analysis';
 import Search from './Admin/Search/Search';
+import GodownAnalytics from './Admin/Godownanalytics/GodownAnalytics';
 
 const AllRoutes = () => {
   return (
@@ -22,6 +23,7 @@ const AllRoutes = () => {
         <Route path="/viewstock" element={<ViewStock />} />
         <Route path="/view-stocks/:godownId" element={<GodownDetail />} />
         <Route path="/search" element={<Search />} />
+        <Route path="/analytics" element={<GodownAnalytics />} />
       </Route>
     </Routes>
   );
