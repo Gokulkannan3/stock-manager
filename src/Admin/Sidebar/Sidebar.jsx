@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import {
   FaBox, FaList, FaChartBar, FaSearch, FaChartLine, FaBars, FaTimes,
-  FaPlus, FaWarehouse, FaAngleDown, FaAngleUp, FaUser
+  FaPlus, FaWarehouse, FaAngleDown, FaAngleUp, FaUser, FaMoneyBill, FaMoneyBillAlt
 } from 'react-icons/fa';
 
 export default function Sidebar() {
@@ -41,6 +41,15 @@ export default function Sidebar() {
       subItems: [
         { name: 'Add Godown', path: '/godown', icon: <FaPlus className="mr-2" /> },
         { name: 'View Stocks', path: '/viewstock', icon: <FaList className="mr-2" /> },
+      ],
+    },
+    {
+      name: 'Booking',
+      allowed: can.inventory,
+      icon: <FaMoneyBillAlt className="mr-2" />,
+      subItems: [
+        { name: 'Book', path: '/book', icon: <FaMoneyBill className="mr-2" /> },
+        { name: 'Overall Bookings', path: '/allbookings', icon: <FaList className="mr-2" /> },
       ],
     },
     { name: 'Overall Stocks', path: '/analysis', icon: <FaChartBar className="mr-2" />, allowed: can.analysis },

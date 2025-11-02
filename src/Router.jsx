@@ -10,6 +10,8 @@ import Analysis from './Admin/Analysis/Analysis';
 import Search from './Admin/Search/Search';
 import GodownAnalytics from './Admin/Godownanalytics/GodownAnalytics';
 import Profile from './Admin/Login/Profile';
+import Booking from './Admin/Booking/Booking';
+import AllBookings from './Admin/Booking/Allbookings';
 
 const AllRoutes = () => {
   return (
@@ -32,6 +34,8 @@ const AllRoutes = () => {
         <Route path="/analysis" element={<Analysis />} />
         <Route path="/analytics" element={<GodownAnalytics />} />
         <Route path="/profile" element={<Profile />} />
+        <Route path="/book" element={<Booking />} />
+        <Route path="/allbookings" element={<AllBookings />} />
       </Route>
     </Routes>
   );
