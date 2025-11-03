@@ -138,9 +138,17 @@ export default function Booking() {
       subtotal += finalAmt;
       totalCases += item.cases;
     });
+
     const packingCharges = subtotal * (packingPercent / 100);
     const subtotalWithPacking = subtotal + packingCharges;
-    const taxableUsed = taxableValue ? parseFloat(taxableValue) : subtotalWithPacking;
+
+    // NEW LOGIC: Add manual taxable value ON TOP of subtotalWithPacking
+    let taxableUsed = subtotalWithPacking;
+    if (taxableValue && !isNaN(taxableValue)) {
+      const manualTaxable = parseFloat(taxableValue);
+      taxableUsed = subtotalWithPacking + manualTaxable; // ADD, not replace!
+    }
+
     const addlDiscountAmt = taxableUsed * (additionalDiscount / 100);
     const netBeforeRound = taxableUsed - addlDiscountAmt;
     const grandTotal = Math.round(netBeforeRound);
