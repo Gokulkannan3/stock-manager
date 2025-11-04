@@ -1,23 +1,38 @@
 // src/pages/Booking/Booking.jsx
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Sidebar from '../Sidebar/Sidebar';
 import Logout from '../Logout';
 import Select from 'react-select';
 import Modal from 'react-modal';
 import { API_BASE_URL } from '../../../Config';
-import { FaPlus, FaTrash, FaFilePdf, FaSpinner, FaDownload, FaTimes } from 'react-icons/fa';
+import { FaPlus, FaTrash, FaFilePdf, FaSpinner, FaDownload, FaTimes, FaSearch } from 'react-icons/fa';
 
 Modal.setAppElement("#root");
 
 export default function Booking() {
+  /* ────────────────────── STATE ────────────────────── */
   const [godowns, setGodowns] = useState([]);
-  const [selectedGodown, setSelectedGodown] = useState(null);
+  const [selectedGodown, setSelectedGodown] = useState(null); // { value, label, isAutoSelected }
   const [stock, setStock] = useState([]);
+  const [filteredStock, setFilteredStock] = useState([]);
+
+  const [customers, setCustomers] = useState([]);
+  const [selectedCustomer, setSelectedCustomer] = useState(null);
+  const [loadingCustomers, setLoadingCustomers] = useState(true);
+
+  const [searchQuery, setSearchQuery] = useState('');
+  const [globalProducts, setGlobalProducts] = useState([]);
+  const [loadingGlobalSearch, setLoadingGlobalSearch] = useState(false);
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
+
+  const [godownSearchQuery, setGodownSearchQuery] = useState('');
+
   const [cart, setCart] = useState([]);
   const [customer, setCustomer] = useState({
     name: '', address: '', gstin: '', lr_number: '', agent_name: '',
     from: '', to: '', through: ''
   });
+
   const [additionalDiscount, setAdditionalDiscount] = useState(0);
   const [packingPercent, setPackingPercent] = useState(3.0);
   const [taxableValue, setTaxableValue] = useState('');
@@ -30,6 +45,8 @@ export default function Booking() {
   const [loadingGodowns, setLoadingGodowns] = useState(true);
   const [loadingStock, setLoadingStock] = useState(false);
   const [loadingPDF, setLoadingPDF] = useState(false);
+
+  const searchInputRef = useRef(null);
 
   const styles = {
     input: {
@@ -55,44 +72,203 @@ export default function Booking() {
     return str.toLowerCase().split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
   };
 
-  // Fetch Godowns
+  /* ────────────────────── FETCH GODOWNS (value as Number) ────────────────────── */
   const fetchGodowns = useCallback(async () => {
     setLoadingGodowns(true);
     try {
       const res = await fetch(`${API_BASE_URL}/api/godown`);
-      if (!res.ok) throw new Error('Failed to fetch godowns');
+      if (!res.ok) throw new Error();
       const data = await res.json();
-      setGodowns(data.map(g => ({ value: g.id, label: capitalize(g.name) })));
-    } catch (err) {
+      const options = data.map(g => ({
+        value: Number(g.id),
+        label: capitalize(g.name)
+      }));
+      setGodowns(options);
+    } catch {
       setError('Failed to load godowns');
     } finally {
       setLoadingGodowns(false);
     }
   }, []);
 
-  useEffect(() => {
-    fetchGodowns();
-  }, [fetchGodowns]);
+  useEffect(() => { fetchGodowns(); }, [fetchGodowns]);
 
-  // Fetch Stock
+  /* ────────────────────── FETCH CUSTOMERS ────────────────────── */
+  const fetchCustomers = useCallback(async () => {
+    setLoadingCustomers(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/customers`);
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      setCustomers(data);
+    } catch {
+      setError('Failed to load customers');
+    } finally {
+      setLoadingCustomers(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchCustomers(); }, [fetchCustomers]);
+
+  /* ────────────────────── AUTO-FILL CUSTOMER ────────────────────── */
+  useEffect(() => {
+    if (selectedCustomer) {
+      setCustomer({
+        name: selectedCustomer.value.name,
+        address: selectedCustomer.value.address,
+        gstin: selectedCustomer.value.gstin,
+        lr_number: selectedCustomer.value.lr_number,
+        agent_name: selectedCustomer.value.agent_name,
+        from: selectedCustomer.value.from,
+        to: selectedCustomer.value.to,
+        through: selectedCustomer.value.through
+      });
+    }
+  }, [selectedCustomer]);
+
+  /* ────────────────────── FETCH STOCK (per godown) ────────────────────── */
   useEffect(() => {
     if (selectedGodown) {
       setLoadingStock(true);
       fetch(`${API_BASE_URL}/api/godown/stock/${selectedGodown.value}`)
         .then(res => res.ok ? res.json() : Promise.reject())
         .then(data => {
-          setStock(data.map(item => ({
+          const enriched = data.map(item => ({
             ...item,
-            rate_per_box: parseFloat(item.rate_per_box) || 0
-          })));
+            id: Number(item.id),
+            rate_per_box: parseFloat(item.rate_per_box) || 0,
+            per_case: item.per_case || 1,
+            current_cases: item.current_cases || 0
+          }));
+          setStock(enriched);
+          setFilteredStock(enriched);
         })
         .catch(() => setError('Failed to load stock'))
         .finally(() => setLoadingStock(false));
     } else {
       setStock([]);
+      setFilteredStock([]);
     }
   }, [selectedGodown]);
 
+  /* ────────────────────── GODOWN SEARCH FILTER (frontend) ────────────────────── */
+  useEffect(() => {
+    const term = godownSearchQuery.trim().toLowerCase();
+    if (!term) {
+      setFilteredStock(stock);
+    } else {
+      setFilteredStock(stock.filter(s =>
+        s.productname.toLowerCase().includes(term) ||
+        s.brand.toLowerCase().includes(term)
+      ));
+    }
+  }, [godownSearchQuery, stock]);
+
+  /* ────────────────────── GLOBAL SEARCH (Convert IDs to Number) ────────────────────── */
+  useEffect(() => {
+    const delay = setTimeout(() => {
+      if (searchQuery.trim().length >= 2) {
+        setLoadingGlobalSearch(true);
+        fetch(`${API_BASE_URL}/api/search/global?name=${encodeURIComponent(searchQuery)}`)
+          .then(r => r.ok ? r.json() : [])
+          .then(data => data.map(p => ({
+            id: Number(p.id),
+            product_type: p.product_type,
+            productname: p.productname,
+            brand: p.brand,
+            per_case: p.per_case || 1,
+            current_cases: p.current_cases || 0,
+            rate_per_box: parseFloat(p.rate_per_box) || 0,
+            godown_name: p.godown_name,
+            godown_id: Number(p.godown_id)
+          })))
+          .then(products => {
+            setGlobalProducts(products);
+            setHighlightedIndex(products.length > 0 ? 0 : -1);
+          })
+          .catch(() => setGlobalProducts([]))
+          .finally(() => setLoadingGlobalSearch(false));
+      } else {
+        setGlobalProducts([]);
+        setHighlightedIndex(-1);
+      }
+    }, 400);
+    return () => clearTimeout(delay);
+  }, [searchQuery]);
+
+  /* ────────────────────── KEYBOARD NAVIGATION ────────────────────── */
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (globalProducts.length === 0) return;
+
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setHighlightedIndex(prev => (prev + 1) % globalProducts.length);
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setHighlightedIndex(prev => (prev - 1 + globalProducts.length) % globalProducts.length);
+      } else if (e.key === 'Enter' && highlightedIndex >= 0) {
+        e.preventDefault();
+        addGlobalProduct(globalProducts[highlightedIndex]);
+      } else if (e.key === 'Escape') {
+        setSearchQuery('');
+        setGlobalProducts([]);
+        setHighlightedIndex(-1);
+      }
+    };
+
+    const input = searchInputRef.current;
+    if (input) input.addEventListener('keydown', handleKeyDown);
+    return () => {
+      if (input) input.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [globalProducts, highlightedIndex]);
+
+  /* ────────────────────── ADD FROM GLOBAL SEARCH (Auto-select with flag) ────────────────────── */
+  const addGlobalProduct = (product) => {
+    if ((product.current_cases || 0) <= 0) {
+      return setError('This product is out of stock');
+    }
+
+    if (cart.some(i => i.id === product.id)) {
+      return setError('Product already in cart');
+    }
+
+    const godownId = product.godown_id;
+    const godownOption = godowns.find(g => g.value === godownId);
+
+    if (!godownOption) {
+      console.error('Godown not found:', { godownId, godowns });
+      return setError('Godown not found');
+    }
+
+    // Auto-select only if not already selected
+    if (!selectedGodown || selectedGodown.value !== godownId) {
+      setSelectedGodown({ ...godownOption, isAutoSelected: true });
+    }
+
+    setCart(prev => [...prev, {
+      id: product.id,
+      product_type: product.product_type,
+      productname: product.productname,
+      brand: product.brand,
+      per_case: product.per_case,
+      current_cases: product.current_cases,
+      cases: 1,
+      discount: 0,
+      godown: product.godown_name,
+      rate_per_box: product.rate_per_box
+    }]);
+
+    setSearchQuery('');
+    setGlobalProducts([]);
+    setHighlightedIndex(-1);
+    setSuccess(`Added: ${product.productname} from ${product.godown_name}`);
+    setTimeout(() => setSuccess(''), 2000);
+    setTimeout(() => searchInputRef.current?.focus(), 100);
+  };
+
+  /* ────────────────────── ADD FROM STOCK LIST ────────────────────── */
   const addToCart = (item) => {
     if (item.current_cases <= 0) return setError('Out of stock');
     setCart(prev => {
@@ -102,7 +278,7 @@ export default function Booking() {
         return prev.map(i => i.id === item.id ? { ...i, cases: i.cases + 1 } : i);
       }
       return [...prev, {
-        id: item.id,
+        id: Number(item.id),
         product_type: item.product_type,
         productname: item.productname,
         brand: item.brand,
@@ -111,11 +287,12 @@ export default function Booking() {
         cases: 1,
         discount: 0,
         godown: selectedGodown.label,
-        rate_per_box: parseFloat(item.rate_per_box) || 0
+        rate_per_box: item.rate_per_box
       }];
     });
   };
 
+  /* ────────────────────── CART ACTIONS ────────────────────── */
   const updateCases = (idx, cases) => {
     cases = Math.max(1, Math.min(cases, cart[idx].current_cases));
     setCart(prev => prev.map((i, index) => index === idx ? { ...i, cases } : i));
@@ -128,6 +305,7 @@ export default function Booking() {
 
   const removeFromCart = (idx) => setCart(prev => prev.filter((_, i) => i !== idx));
 
+  /* ────────────────────── CALCULATION ────────────────────── */
   const calculate = () => {
     let subtotal = 0, totalCases = 0;
     cart.forEach(item => {
@@ -142,11 +320,9 @@ export default function Booking() {
     const packingCharges = subtotal * (packingPercent / 100);
     const subtotalWithPacking = subtotal + packingCharges;
 
-    // NEW LOGIC: Add manual taxable value ON TOP of subtotalWithPacking
     let taxableUsed = subtotalWithPacking;
     if (taxableValue && !isNaN(taxableValue)) {
-      const manualTaxable = parseFloat(taxableValue);
-      taxableUsed = subtotalWithPacking + manualTaxable; // ADD, not replace!
+      taxableUsed = subtotalWithPacking + parseFloat(taxableValue);
     }
 
     const addlDiscountAmt = taxableUsed * (additionalDiscount / 100);
@@ -166,6 +342,9 @@ export default function Booking() {
     };
   };
 
+  const calc = calculate();
+
+  /* ────────────────────── SUBMIT ────────────────────── */
   const submitBooking = async () => {
     if (!customer.name || cart.length === 0 || !selectedGodown || !customer.from || !customer.to || !customer.through) {
       return setError('Please fill all required fields');
@@ -206,7 +385,6 @@ export default function Booking() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Failed');
 
-      // Generate blob for mobile-safe PDF
       setLoadingPDF(true);
       const pdfRes = await fetch(`${API_BASE_URL}${data.pdfPath}`);
       const blob = await pdfRes.blob();
@@ -218,6 +396,7 @@ export default function Booking() {
       setSuccess('Bill Generated!');
       setCart([]);
       setCustomer({ name: '', address: '', gstin: '', lr_number: '', agent_name: '', from: '', to: '', through: '' });
+      setSelectedCustomer(null);
       setAdditionalDiscount(0); setTaxableValue('');
     } catch (err) {
       setError(err.message);
@@ -227,13 +406,9 @@ export default function Booking() {
     }
   };
 
-  const calc = calculate();
-
-  // Cleanup blob
+  /* ────────────────────── CLEANUP ────────────────────── */
   useEffect(() => {
-    return () => {
-      if (pdfBlobUrl) URL.revokeObjectURL(pdfBlobUrl);
-    };
+    return () => { if (pdfBlobUrl) URL.revokeObjectURL(pdfBlobUrl); };
   }, [pdfBlobUrl]);
 
   return (
@@ -259,35 +434,23 @@ export default function Booking() {
 
           <div className="space-y-6">
 
-            {/* Customer Details */}
+            {/* CUSTOMER SELECTOR */}
             <div className="bg-white dark:bg-gray-800 p-3 mobile:p-4 rounded-lg shadow">
-              <h3 className="text-sm mobile:text-md font-semibold mb-3 text-black dark:text-white">Customer Details</h3>
-              <div className="grid grid-cols-1 mobile:grid-cols-2 gap-2 mobile:gap-3 text-xs mobile:text-sm">
-                <input placeholder="Party Name *" value={customer.name} onChange={e => setCustomer({ ...customer, name: e.target.value })} className="rounded px-2 py-1.5 border" style={styles.input} />
-                <input placeholder="Address" value={customer.address} onChange={e => setCustomer({ ...customer, address: e.target.value })} className="rounded px-2 py-1.5 border" style={styles.input} />
-                <input placeholder="GSTIN" value={customer.gstin} onChange={e => setCustomer({ ...customer, gstin: e.target.value })} className="rounded px-2 py-1.5 border" style={styles.input} />
-                <input placeholder="L.R. Number" value={customer.lr_number} onChange={e => setCustomer({ ...customer, lr_number: e.target.value })} className="rounded px-2 py-1.5 border" style={styles.input} />
-                <input placeholder="Agent Name" value={customer.agent_name} onChange={e => setCustomer({ ...customer, agent_name: e.target.value })} className="rounded px-2 py-1.5 border" style={styles.input} />
-                <input placeholder="From (e.g. SIVAKASI) *" value={customer.from} onChange={e => setCustomer({ ...customer, from: e.target.value })} className="rounded px-2 py-1.5 border" style={styles.input} />
-                <input placeholder="To (e.g. BOMMIDI) *" value={customer.to} onChange={e => setCustomer({ ...customer, to: e.target.value })} className="rounded px-2 py-1.5 border" style={styles.input} />
-                <input placeholder="Through (e.g. ABI TPT) *" value={customer.through} onChange={e => setCustomer({ ...customer, through: e.target.value })} className="rounded px-2 py-1.5 border" style={styles.input} />
-              </div>
-            </div>
-
-            {/* Godown Selector */}
-            <div className="bg-white dark:bg-gray-800 p-3 mobile:p-4 rounded-lg shadow">
-              <label className="block font-medium mb-1 text-black dark:text-white text-xs mobile:text-sm">Select Godown *</label>
-              {loadingGodowns ? (
-                <div className="flex items-center justify-center py-3">
-                  <FaSpinner className="animate-spin h-4 w-4 mobile:h-5 mobile:w-5 text-blue-600 mr-2" />
-                  <span className="text-xs mobile:text-sm text-gray-600 dark:text-gray-400">Loading godowns...</span>
+              <label className="block font-medium mb-1 text-black dark:text-white text-xs mobile:text-sm">
+                Select Existing Customer (optional)
+              </label>
+              {loadingCustomers ? (
+                <div className="flex items-center justify-center py-2">
+                  <FaSpinner className="animate-spin h-4 w-4 text-blue-600 mr-2" />
+                  <span className="text-xs">Loading...</span>
                 </div>
               ) : (
                 <Select
-                  options={godowns}
-                  value={selectedGodown}
-                  onChange={setSelectedGodown}
-                  placeholder="Choose Godown"
+                  options={customers}
+                  value={selectedCustomer}
+                  onChange={setSelectedCustomer}
+                  placeholder="Search / Select Customer"
+                  isClearable
                   className="text-xs mobile:text-sm"
                   styles={{
                     control: (base) => ({
@@ -302,18 +465,132 @@ export default function Booking() {
               )}
             </div>
 
-            {/* Available Stock */}
-            {selectedGodown && (
+            {/* CUSTOMER DETAILS */}
+            <div className="bg-white dark:bg-gray-800 p-3 mobile:p-4 rounded-lg shadow">
+              <h3 className="text-sm mobile:text-md font-semibold mb-3 text-black dark:text-white">Customer Details</h3>
+              <div className="grid grid-cols-1 mobile:grid-cols-2 gap-2 mobile:gap-3 text-xs mobile:text-sm">
+                <input placeholder="Party Name *" value={customer.name} onChange={e => setCustomer({ ...customer, name: e.target.value })} className="rounded px-2 py-1.5 border" style={styles.input} />
+                <input placeholder="Address" value={customer.address} onChange={e => setCustomer({ ...customer, address: e.target.value })} className="rounded px-2 py-1.5 border" style={styles.input} />
+                <input placeholder="GSTIN" value={customer.gstin} onChange={e => setCustomer({ ...customer, gstin: e.target.value })} className="rounded px-2 py-1.5 border" style={styles.input} />
+                <input placeholder="L.R. Number" value={customer.lr_number} onChange={e => setCustomer({ ...customer, lr_number: e.target.value })} className="rounded px-2 py-1.5 border" style={styles.input} />
+                <input placeholder="Agent Name" value={customer.agent_name} onChange={e => setCustomer({ ...customer, agent_name: e.target.value })} className="rounded px-2 py-1.5 border" style={styles.input} />
+                <input placeholder="From (e.g. SIVAKASI) *" value={customer.from} onChange={e => setCustomer({ ...customer, from: e.target.value })} className="rounded px-2 py-1.5 border" style={styles.input} />
+                <input placeholder="To (e.g. BOMMIDI) *" value={customer.to} onChange={e => setCustomer({ ...customer, to: e.target.value })} className="rounded px-2 py-1.5 border" style={styles.input} />
+                <input placeholder="Through (e.g. ABI TPT) *" value={customer.through} onChange={e => setCustomer({ ...customer, through: e.target.value })} className="rounded px-2 py-1.5 border" style={styles.input} />
+              </div>
+            </div>
+
+            {/* GLOBAL PRODUCT SEARCH */}
+            <div className="bg-white dark:bg-gray-800 p-3 mobile:p-4 rounded-lg shadow">
+              <label className="block font-medium mb-1 text-black dark:text-white text-xs mobile:text-sm">
+                Search Products (All Godowns)
+              </label>
+              <div className="relative">
+                <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 h-4 w-4" />
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  placeholder="Type product name (min 2 chars)..."
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  className="w-full pl-10 pr-3 py-2 border rounded text-xs mobile:text-sm"
+                  style={styles.input}
+                />
+              </div>
+              {loadingGlobalSearch && (
+                <div className="mt-2 text-xs text-blue-600">Searching...</div>
+              )}
+              {globalProducts.length > 0 && (
+                <div className="mt-2 max-h-48 overflow-y-auto border rounded bg-gray-50 dark:bg-gray-700 p-2">
+                  {globalProducts.map((p, idx) => (
+                    <div
+                      key={p.id}
+                      className={`flex justify-between items-center p-2 border-b text-xs cursor-pointer transition ${
+                        idx === highlightedIndex
+                          ? 'bg-blue-100 dark:bg-blue-900'
+                          : 'hover:bg-blue-50 dark:hover:bg-blue-900'
+                      }`}
+                      onClick={() => addGlobalProduct(p)}
+                    >
+                      <div>
+                        <span className="font-medium text-sm text-black dark:text-white">{p.productname}</span>
+                        <span className="text-black dark:text-white"> ({p.godown_name})</span>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-green-600">₹{(p.rate_per_box || 0).toFixed(2)}/box</p>
+                        <p className="text-cm text-black dark:text-white">Cases: {p.current_cases}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* GODOWN SELECTOR (Manual = clear flag) */}
+            <div className="bg-white dark:bg-gray-800 p-3 mobile:p-4 rounded-lg shadow">
+              <label className="block font-medium mb-1 text-black dark:text-white text-xs mobile:text-sm">
+                Selected Godown: {selectedGodown ? selectedGodown.label : 'None'}
+              </label>
+              {loadingGodowns ? (
+                <div className="flex items-center justify-center py-3">
+                  <FaSpinner className="animate-spin h-4 w-4 mobile:h-5 mobile:w-5 text-blue-600 mr-2" />
+                  <span className="text-xs mobile:text-sm text-gray-600 dark:text-gray-400">Loading...</span>
+                </div>
+              ) : (
+                <Select
+                  options={godowns}
+                  value={selectedGodown}
+                  onChange={(opt) => {
+                    setSelectedGodown(opt ? { ...opt, isAutoSelected: false } : null);
+                  }}
+                  placeholder="Choose Godown (auto-selected on add)"
+                  isClearable
+                  className="text-xs mobile:text-sm"
+                  styles={{
+                    control: (base) => ({
+                      ...base,
+                      ...styles.input,
+                      border: '1px solid rgba(2,132,199,0.3)',
+                      boxShadow: 'none',
+                      '&:hover': { borderColor: 'rgba(2,132,199,0.5)' }
+                    })
+                  }}
+                />
+              )}
+            </div>
+
+            {/* SEARCH IN GODOWN */}
+            {/* {selectedGodown && selectedGodown.isAutoSelected !== true && (
+              <div className="bg-white dark:bg-gray-800 p-3 mobile:p-4 rounded-lg shadow">
+                <label className="block font-medium mb-1 text-black dark:text-white text-xs mobile:text-sm">
+                  Search in {selectedGodown.label}
+                </label>
+                <div className="relative">
+                  <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 h-4 w-4" />
+                  <input
+                    type="text"
+                    placeholder="Type product name..."
+                    value={godownSearchQuery}
+                    onChange={e => setGodownSearchQuery(e.target.value)}
+                    className="w-full pl-10 pr-3 py-2 border rounded text-xs mobile:text-sm"
+                    style={styles.input}
+                  />
+                </div>
+              </div>
+            )} */}
+
+            {/* AVAILABLE STOCK – ONLY IF MANUALLY SELECTED */}
+            {selectedGodown && selectedGodown.isAutoSelected !== true && (
               <div className="bg-white dark:bg-gray-800 p-3 mobile:p-4 rounded-lg shadow">
                 <h3 className="text-sm mobile:text-md font-semibold mb-3 text-black dark:text-white">Available Stock</h3>
                 {loadingStock ? (
                   <div className="flex items-center justify-center py-6">
                     <FaSpinner className="animate-spin h-5 w-5 mobile:h-6 mobile:w-6 text-blue-600 mr-2" />
-                    <span className="text-xs mobile:text-sm text-gray-600 dark:text-gray-400">Loading stock...</span>
+                    <span className="text-xs mobile:text-sm text-gray-600 dark:text-gray-400">Loading...</span>
                   </div>
-                ) : stock.length > 0 ? (
+                ) : filteredStock.length > 0 ? (
                   <div className="grid grid-cols-2 mobile:grid-cols-3 lg:grid-cols-4 gap-2 mobile:gap-3 text-black dark:text-white">
-                    {stock.map(item => (
+                    {filteredStock.map(item => (
                       <div key={item.id} className="border rounded p-2 text-xs mobile:text-sm bg-gray-50 dark:bg-gray-700">
                         <p className="font-medium truncate">{item.productname}</p>
                         <p>Type: {capitalize(item.product_type)}</p>
@@ -333,12 +610,14 @@ export default function Booking() {
                     ))}
                   </div>
                 ) : (
-                  <p className="text-center text-gray-500 dark:text-gray-400 py-4 text-xs mobile:text-sm">No stock available.</p>
+                  <p className="text-center text-gray-500 dark:text-gray-400 py-4 text-xs mobile:text-sm">
+                    {godownSearchQuery ? 'No products match your search.' : 'No stock available.'}
+                  </p>
                 )}
               </div>
             )}
 
-            {/* Cart */}
+            {/* CART & TOTALS */}
             {cart.length > 0 && (
               <div className="bg-white dark:bg-gray-800 p-3 mobile:p-4 rounded-lg shadow">
                 <h3 className="text-sm mobile:text-md font-semibold mb-3 text-black dark:text-white">Cart</h3>
@@ -352,7 +631,7 @@ export default function Booking() {
                         <th className="p-1 mobile:p-2 border text-xs mobile:text-sm">Per</th>
                         <th className="p-1 mobile:p-2 border text-xs mobile:text-sm">Qty</th>
                         <th className="p-1 mobile:p-2 border text-xs mobile:text-sm">Rate</th>
-                        <th className="p-1 mobile:p-2 border text-xs mobile:text-sm">Disc %</th>
+                        {/* <th className="p-1 mobile:p-2 border text-xs mobile:text-sm">Disc %</th> */}
                         <th className="p-1 mobile:p-2 border text-xs mobile:text-sm">Amount</th>
                         <th className="p-1 mobile:p-2 border text-xs mobile:text-sm">From</th>
                         <th className="p-1 mobile:p-2 border"></th>
@@ -367,33 +646,23 @@ export default function Booking() {
                         return (
                           <tr key={idx} className="border-b text-black dark:text-white">
                             <td className="p-1 mobile:p-2 border text-center text-xs mobile:text-sm">{idx + 1}</td>
-                            <td className="p-1 mobile:p-2 border text-xs mobile:text-sm truncate max-w-24 mobile:max-w-32">{item.productname}</td>
+                            <td className="p-1 mobile:p-2 border text-center text-xs mobile:text-sm truncate max-w-24 mobile:max-w-32">{item.productname}</td>
                             <td className="p-1 mobile:p-2 border text-center">
-                              <input
-                                type="number"
-                                min="1"
-                                max={item.current_cases}
-                                value={item.cases}
+                              <input type="number" min="1" max={item.current_cases} value={item.cases}
                                 onChange={e => updateCases(idx, parseInt(e.target.value))}
                                 className="w-12 mobile:w-16 p-1 border rounded text-xs text-black"
-                                style={styles.input}
-                              />
+                                style={styles.input} />
                             </td>
                             <td className="p-1 mobile:p-2 border text-center text-xs mobile:text-sm">{item.per_case}</td>
                             <td className="p-1 mobile:p-2 border text-center text-xs mobile:text-sm">{qty}</td>
-                            <td className="p-1 mobile:p-2 border text-right text-xs mobile:text-sm">₹{(item.rate_per_box || 0).toFixed(2)}</td>
-                            <td className="p-1 mobile:p-2 border text-center">
-                              <input
-                                type="number"
-                                min="0"
-                                max="100"
-                                value={item.discount}
+                            <td className="p-1 mobile:p-2 border text-center text-xs mobile:text-sm">₹{(item.rate_per_box || 0).toFixed(2)}</td>
+                            {/* <td className="p-1 mobile:p-2 border text-center">
+                              <input type="number" min="0" max="100" value={item.discount}
                                 onChange={e => updateDiscount(idx, parseFloat(e.target.value))}
                                 className="w-12 mobile:w-16 p-1 border rounded text-xs text-black"
-                                style={styles.input}
-                              />
-                            </td>
-                            <td className="p-1 mobile:p-2 border text-right text-xs mobile:text-sm">₹{finalAmt.toFixed(2)}</td>
+                                style={styles.input} />
+                            </td> */}
+                            <td className="p-1 mobile:p-2 border text-center text-xs mobile:text-sm">₹{finalAmt.toFixed(2)}</td>
                             <td className="p-1 mobile:p-2 border text-center text-xs mobile:text-sm">{item.godown}</td>
                             <td className="p-1 mobile:p-2 border text-center">
                               <button onClick={() => removeFromCart(idx)} className="text-red-600">
@@ -407,7 +676,6 @@ export default function Booking() {
                   </table>
                 </div>
 
-                {/* Totals */}
                 <div className="mt-4 grid grid-cols-1 mobile:grid-cols-2 gap-3 mobile:gap-4 text-xs mobile:text-sm text-black dark:text-white">
                   <div>
                     <p className="font-bold">No. of Cases: {calc.totalCases}</p>
@@ -425,25 +693,32 @@ export default function Booking() {
                   </div>
                 </div>
 
-                {/* Discount & Packing Inputs */}
                 <div className="mt-4 grid grid-cols-1 mobile:grid-cols-3 gap-3 text-xs mobile:text-sm">
                   <div>
                     <label className="block font-medium mb-1 text-black dark:text-white">Additional Discount (%)</label>
-                    <input type="number" value={additionalDiscount} onChange={e => setAdditionalDiscount(parseFloat(e.target.value) || 0)} className="w-full rounded px-2 py-1.5 border" style={styles.input} />
+                    <input type="number" value={additionalDiscount}
+                      onChange={e => setAdditionalDiscount(parseFloat(e.target.value) || 0)}
+                      className="w-full rounded px-2 py-1.5 border" style={styles.input} />
                   </div>
                   <div>
                     <label className="block font-medium mb-1 text-black dark:text-white">Packing Charges (%)</label>
-                    <input type="number" step="0.1" value={packingPercent} onChange={e => setPackingPercent(parseFloat(e.target.value) || 0)} className="w-full rounded px-2 py-1.5 border" style={styles.input} />
+                    <input type="number" step="0.1" value={packingPercent}
+                      onChange={e => setPackingPercent(parseFloat(e.target.value) || 0)}
+                      className="w-full rounded px-2 py-1.5 border" style={styles.input} />
                   </div>
                   <div>
-                    <label className="block font-medium mb-1 text-black dark:text-white">Taxable Value</label>
-                    <input type="number" placeholder="Auto if blank" value={taxableValue} onChange={e => setTaxableValue(e.target.value)} className="w-full rounded px-2 py-1.5 border" style={styles.input} />
+                    <label className="block font-medium mb-1 text-black dark:text-white">
+                      Additional Taxable Amount
+                    </label>
+                    <input type="number" placeholder="e.g. 1000 (added)"
+                      value={taxableValue} onChange={e => setTaxableValue(e.target.value)}
+                      className="w-full rounded px-2 py-1.5 border" style={styles.input} />
                   </div>
                 </div>
               </div>
             )}
 
-            {/* Generate Bill Button */}
+            {/* GENERATE BILL */}
             <button
               onClick={submitBooking}
               disabled={loading || cart.length === 0}
@@ -460,7 +735,7 @@ export default function Booking() {
         </div>
       </div>
 
-      {/* PDF Modal – Works on iPhone */}
+      {/* PDF MODAL */}
       <Modal
         isOpen={showPDFModal}
         onRequestClose={() => setShowPDFModal(false)}
@@ -469,51 +744,36 @@ export default function Booking() {
         closeTimeoutMS={200}
       >
         <div className="flex flex-col h-full max-h-screen">
-          {/* Header */}
           <div className="flex justify-between items-center p-4 border-b dark:border-gray-700">
             <h2 className="text-lg mobile:text-xl font-bold text-gray-900 dark:text-gray-100">
               Bill: {billNumber}
             </h2>
             <div className="flex gap-2">
-              <a
-                href={pdfBlobUrl}
-                download={`${billNumber}.pdf`}
-                className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded text-sm flex items-center gap-1 transition"
-              >
+              <a href={pdfBlobUrl} download={`${billNumber}.pdf`}
+                className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded text-sm flex items-center gap-1 transition">
                 <FaDownload className="h-3 w-3" /> Download
               </a>
-              <button
-                onClick={() => setShowPDFModal(false)}
-                className="px-3 py-1.5 bg-gray-600 hover:bg-gray-700 text-white rounded text-sm flex items-center gap-1 transition"
-              >
+              <button onClick={() => setShowPDFModal(false)}
+                className="px-3 py-1.5 bg-gray-600 hover:bg-gray-700 text-white rounded text-sm flex items-center gap-1 transition">
                 <FaTimes className="h-3 w-3" /> Close
               </button>
             </div>
           </div>
-
-          {/* PDF Viewer */}
           <div className="flex-1 bg-gray-50 dark:bg-gray-900 p-2 mobile:p-4 overflow-auto">
             {loadingPDF ? (
               <div className="flex items-center justify-center h-64">
                 <FaSpinner className="animate-spin h-8 w-8 text-blue-600" />
               </div>
             ) : pdfBlobUrl ? (
-              <embed
-                src={pdfBlobUrl}
-                type="application/pdf"
-                className="w-full h-full min-h-96 border-0"
-                style={{ minHeight: '500px' }}
-              />
+              <embed src={pdfBlobUrl} type="application/pdf" className="w-full h-full min-h-96 border-0" />
             ) : (
               <p className="text-center text-red-600">Failed to load PDF</p>
             )}
           </div>
-
-          {/* Fallback Link */}
           {pdfBlobUrl && (
             <div className="p-2 text-center text-xs text-gray-500">
               <a href={pdfBlobUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">
-                Open in new tab (if PDF doesn't show)
+                Open in new tab
               </a>
             </div>
           )}

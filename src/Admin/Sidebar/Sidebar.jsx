@@ -9,6 +9,7 @@ export default function Sidebar() {
   const [isOpen, setIsOpen] = useState(false);
   const [isInventoryOpen, setIsInventoryOpen] = useState(false);
   const [isGodownOpen, setIsGodownOpen] = useState(false);
+  const [isBookingOpen, setIsBookingOpen] = useState(false);
 
   const userType = localStorage.getItem('userType') || 'worker';
 
@@ -17,6 +18,7 @@ export default function Sidebar() {
   const can = {
     inventory: userType === 'admin',
     godown: ['admin', 'agent', 'worker'].includes(userType),
+    booking: userType === 'admin', // ← Only admin can see Booking
     analysis: userType === 'admin',
     search: ['admin', 'agent', 'worker'].includes(userType),
     analytics: userType === 'admin',
@@ -45,7 +47,7 @@ export default function Sidebar() {
     },
     {
       name: 'Booking',
-      allowed: can.inventory,
+      allowed: can.booking,
       icon: <FaMoneyBillAlt className="mr-2" />,
       subItems: [
         { name: 'Book', path: '/book', icon: <FaMoneyBill className="mr-2" /> },
@@ -61,6 +63,15 @@ export default function Sidebar() {
   const toggleSidebar = () => setIsOpen(!isOpen);
   const toggleInventory = () => setIsInventoryOpen(!isInventoryOpen);
   const toggleGodown = () => setIsGodownOpen(!isGodownOpen);
+  const toggleBooking = () => setIsBookingOpen(!isBookingOpen);
+
+  // Helper to get toggle & state for each section
+  const getToggle = (name) => {
+    if (name === 'Inventory') return { toggle: toggleInventory, isOpen: isInventoryOpen };
+    if (name === 'Godown') return { toggle: toggleGodown, isOpen: isGodownOpen };
+    if (name === 'Booking') return { toggle: toggleBooking, isOpen: isBookingOpen };
+    return { toggle: () => {}, isOpen: false };
+  };
 
   return (
     <>
@@ -90,7 +101,9 @@ export default function Sidebar() {
         <nav className="flex-1 mt-4 overflow-y-auto">
           <ul>
             {navItems.map((item) => {
-              if (!item.allowed) return null;               // hide completely
+              if (!item.allowed) return null;
+
+              const { toggle, isOpen: sectionOpen } = getToggle(item.name);
 
               return (
                 <li key={item.name}>
@@ -98,38 +111,34 @@ export default function Sidebar() {
                     <div>
                       <div
                         className="py-3 px-6 text-sm font-bold text-gray-300 flex items-center justify-between cursor-pointer hover:bg-black/50 transition-colors"
-                        onClick={item.name === 'Inventory' ? toggleInventory : toggleGodown}
+                        onClick={toggle}
                       >
                         <span className="flex items-center">
                           {item.icon}
                           {item.name}
                         </span>
-                        {(item.name === 'Inventory' ? isInventoryOpen : isGodownOpen)
-                          ? <FaAngleUp />
-                          : <FaAngleDown />}
+                        {sectionOpen ? <FaAngleUp /> : <FaAngleDown />}
                       </div>
 
                       <ul
                         className={`pl-4 overflow-hidden transition-all duration-300 ease-in-out ${
-                          (item.name === 'Inventory' ? isInventoryOpen : isGodownOpen)
-                            ? 'max-h-96'
-                            : 'max-h-0'
+                          sectionOpen ? 'max-h-96' : 'max-h-0'
                         }`}
                       >
                         {item.subItems.map((sub) => (
                           <li key={sub.name}>
-                          <NavLink
-                            to={sub.path}
-                            className={({ isActive }) =>
-                              `flex items-center py-2 px-6 text-sm font-medium hover:bg-black/50 transition-colors ${
-                                isActive ? 'bg-gray-900 text-white' : ''
-                              }`
-                            }
-                            onClick={() => setIsOpen(false)}
-                          >
-                            {sub.icon}
-                            {sub.name}
-                          </NavLink>
+                            <NavLink
+                              to={sub.path}
+                              className={({ isActive }) =>
+                                `flex items-center py-2 px-6 text-sm font-medium hover:bg-black/50 transition-colors ${
+                                  isActive ? 'bg-gray-900 text-white' : ''
+                                }`
+                              }
+                              onClick={() => setIsOpen(false)}
+                            >
+                              {sub.icon}
+                              {sub.name}
+                            </NavLink>
                           </li>
                         ))}
                       </ul>
