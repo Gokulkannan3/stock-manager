@@ -3,13 +3,15 @@ import Modal from 'react-modal';
 import Sidebar from '../Sidebar/Sidebar';
 import Logout from '../Logout';
 import { API_BASE_URL } from '../../../Config';
-import { FaMinus, FaHistory, FaTimes, FaPlus, FaDownload } from 'react-icons/fa';
+import { FaMinus, FaHistory, FaTimes, FaPlus, FaDownload, FaSpinner } from 'react-icons/fa';
 import { useParams } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import { debounce } from 'lodash';
 import DatePicker from 'react-datepicker';
 import "react-datepicker/dist/react-datepicker.css";
+
 Modal.setAppElement('#root');
+
 export default function GodownDetail() {
   const { godownId } = useParams();
   const [godown, setGodown] = useState(null);
@@ -36,6 +38,8 @@ export default function GodownDetail() {
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [showUniqueProductsModal, setShowUniqueProductsModal] = useState(false);
   const [showTotalCasesModal, setShowTotalCasesModal] = useState(false);
+  const [isLoading, setIsLoading] = useState(true); // NEW: Master loading state
+
   const styles = {
     input: {
       background: 'linear-gradient(135deg, rgba(255,255,255,0.8), rgba(240,249,255,0.6))',
@@ -54,15 +58,22 @@ export default function GodownDetail() {
       boxShadowDark: '0 15px 35px rgba(59,130,246,0.4), inset 0 1px 0 rgba(255,255,255,0.1)',
     },
   };
+
   const debouncedSetCasesTaken = debounce(v => setCasesTaken(v), 300);
   const debouncedSetCasesToAdd = debounce(v => setCasesToAdd(v), 300);
+
   const capitalize = str =>
     str ? str.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') : '';
+
+  // FETCH GODOWN + PRELOAD ALL HISTORY
   const fetchGodown = async () => {
+    setIsLoading(true);
+    setIsLoadingHistory(true);
     try {
       const response = await fetch(`${API_BASE_URL}/api/godowns/${godownId}/stock`);
       if (!response.ok) throw new Error('Failed to fetch godown details');
       const data = await response.json();
+
       if (data.length === 0) {
         setGodown({ name: 'Unknown', stocks: [] });
       } else {
@@ -70,7 +81,8 @@ export default function GodownDetail() {
         const uniqueTypes = [...new Set(data.map(s => s.product_type))];
         setProductTypes(uniqueTypes);
       }
-      setIsLoadingHistory(true);
+
+      // Pre-load history for all stocks
       for (const stock of data) {
         if (!historyCache[stock.id]) {
           try {
@@ -79,15 +91,17 @@ export default function GodownDetail() {
               const hist = await res.json();
               setHistoryCache(prev => ({ ...prev, [stock.id]: hist }));
             }
-          } catch (e) {}
+          } catch (e) { /* ignore */ }
         }
       }
-      setIsLoadingHistory(false);
     } catch (err) {
       setError(err.message);
+    } finally {
+      setIsLoading(false);
       setIsLoadingHistory(false);
     }
   };
+
   const handleTakeStock = async () => {
     if (!selectedStock?.id || !casesTaken || parseInt(casesTaken) <= 0) return;
     setIsTakingStock(true);
@@ -108,6 +122,7 @@ export default function GodownDetail() {
       setIsTakingStock(false);
     }
   };
+
   const handleAddStock = async () => {
     if (!selectedStock?.id || !casesToAdd || parseInt(casesToAdd) <= 0) return;
     try {
@@ -125,6 +140,7 @@ export default function GodownDetail() {
       setError(err.message);
     }
   };
+
   const fetchStockHistory = async stockId => {
     if (historyCache[stockId]) {
       setStockHistory(historyCache[stockId]);
@@ -142,7 +158,9 @@ export default function GodownDetail() {
       setError(err.message);
     }
   };
+
   const openDownloadModal = () => setShowDownloadModal(true);
+
   const confirmDownload = () => {
     if (!godown?.stocks?.length) {
       alert('No stock data to export');
@@ -166,7 +184,6 @@ export default function GodownDetail() {
       return;
     }
     const wb = XLSX.utils.book_new();
-    // === 1. CURRENT STOCK SHEET ===
     const currentStockData = godown.stocks
       .filter(s => s.current_cases > 0)
       .map(s => ({
@@ -182,7 +199,6 @@ export default function GodownDetail() {
       const wsCurrent = XLSX.utils.json_to_sheet(currentStockData);
       XLSX.utils.book_append_sheet(wb, wsCurrent, 'Current Stock');
     }
-    // === 2. HISTORY SHEETS BY PRODUCT TYPE ===
     const historyByType = {};
     filtered.forEach(h => {
       const type = capitalize(h.product_type);
@@ -218,19 +234,23 @@ export default function GodownDetail() {
     setSelectedDate(null);
     setSelectedMonth(null);
   };
+
   useEffect(() => {
     fetchGodown();
   }, [godownId]);
+
   const openTakeModal = stock => {
     setSelectedStock(stock);
     setCasesTaken('');
     setTakeModalIsOpen(true);
   };
+
   const openAddModal = stock => {
     setSelectedStock(stock);
     setCasesToAdd('');
     setAddModalIsOpen(true);
   };
+
   const currentStocks = godown ? godown.stocks.filter(s => s.current_cases > 0) : [];
   const previousStocks = godown ? godown.stocks.filter(s => s.current_cases === 0) : [];
   const stocksToDisplay = activeTab === 'current' ? currentStocks : previousStocks;
@@ -243,28 +263,56 @@ export default function GodownDetail() {
   const indexOfLastCard = currentPage * cardsPerPage;
   const indexOfFirstCard = indexOfLastCard - cardsPerPage;
   const currentCards = filteredStocks.slice(indexOfFirstCard, indexOfLastCard);
+
   const uniqueProducts = godown
     ? [...new Set(godown.stocks.map(s => s.productname))].sort()
     : [];
-  // FIXED: sum is now defined
-    const totalCases = godown
-      ? godown.stocks.reduce((sum, s) => sum + s.current_cases, 0)
-      : 0;
-    // FIXED: Safe fallback if product not found
-    const uniqueProductsData = uniqueProducts.map((name, i) => {
-      const stock = godown.stocks.find(s => s.productname === name) || {};
-      return {
-        no: i + 1,
-        product_type: capitalize(stock.product_type || 'unknown'),
-        name
-      };
-    });
+
+  const totalCases = godown
+    ? godown.stocks.reduce((sum, s) => sum + s.current_cases, 0)
+    : 0;
+
+  const uniqueProductsData = uniqueProducts.map((name, i) => {
+    const stock = godown.stocks.find(s => s.productname === name) || {};
+    return {
+      no: i + 1,
+      product_type: capitalize(stock.product_type || 'unknown'),
+      name
+    };
+  });
+
   const totalCasesData = godown
     ? godown.stocks
         .filter(s => s.current_cases > 0)
         .map(s => ({ productname: s.productname, casecount: s.current_cases }))
         .sort((a, b) => b.casecount - a.casecount)
     : [];
+
+  // FULL-SCREEN LOADER
+  if (isLoading) {
+    return (
+      <div className="flex min-h-screen bg-gray-100 dark:bg-gray-900">
+        <Sidebar />
+        <Logout />
+
+        {/* Main content area with overlay spinner */}
+        <div className="flex-1 relative">
+          <div className="absolute inset-0 bg-white dark:bg-gray-900 bg-opacity-90 flex items-center justify-center z-40">
+            <div className="flex flex-col items-center">
+              <FaSpinner className="animate-spin h-12 w-12 text-blue-600 mb-4" />
+              <p className="text-lg font-medium text-gray-700 dark:text-gray-300">
+                Loading Godown & History...
+              </p>
+            </div>
+          </div>
+
+          {/* Invisible placeholder to maintain layout */}
+          <div className="p-6 pt-16 min-h-screen opacity-0">&nbsp;</div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex min-h-screen bg-gray-100 dark:bg-gray-900">
       <Sidebar />
@@ -285,6 +333,7 @@ export default function GodownDetail() {
               {isLoadingHistory ? 'Loading...' : 'Download History'}
             </button>
           </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
             <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow flex justify-between items-center">
               <div>
@@ -311,7 +360,9 @@ export default function GodownDetail() {
               </button>
             </div>
           </div>
+
           {error && <div className="mb-4 text-red-600 dark:text-red-400 text-center">{error}</div>}
+
           <div className="mb-6 mobile:mb-4 flex mobile:flex-col mobile:gap-4 justify-between items-center">
             <select
               value={selectedProductType}
@@ -325,6 +376,7 @@ export default function GodownDetail() {
               ))}
             </select>
           </div>
+
           <div className="mb-6 mobile:mb-4">
             <div className="flex border-b border-gray-200 dark:border-gray-700">
               <button
@@ -341,6 +393,7 @@ export default function GodownDetail() {
               </button>
             </div>
           </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mobile:gap-4">
             {currentCards.map(s => (
               <div key={s.id} className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mobile:p-4 border border-gray-200 dark:border-gray-700">
@@ -386,11 +439,13 @@ export default function GodownDetail() {
               </div>
             ))}
           </div>
+
           {filteredStocks.length === 0 && (
             <p className="text-center text-gray-500 dark:text-gray-400 mt-6 mobile:mt-4">
               No {activeTab === 'current' ? 'current' : 'previous'} stocks available.
             </p>
           )}
+
           {totalPages > 1 && (
             <div className="mt-6 flex justify-center items-center space-x-4">
               <button
@@ -416,68 +471,36 @@ export default function GodownDetail() {
           )}
         </div>
       </div>
+
+      {/* === MODALS (unchanged) === */}
       {/* Take Modal */}
-      <Modal
-        isOpen={takeModalIsOpen}
-        onRequestClose={() => { setTakeModalIsOpen(false); setCasesTaken(''); setSelectedStock(null); }}
-        className="fixed inset-0 flex items-center justify-center p-4"
-        overlayClassName="fixed inset-0 bg-black/50"
-      >
+      <Modal isOpen={takeModalIsOpen} onRequestClose={() => { setTakeModalIsOpen(false); setCasesTaken(''); setSelectedStock(null); }} className="fixed inset-0 flex items-center justify-center p-4" overlayClassName="fixed inset-0 bg-black/50">
         <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-lg font-bold text-black dark:text-white">Take Cases</h2>
             <button onClick={() => setTakeModalIsOpen(false)}><FaTimes /></button>
           </div>
-          <input
-            type="number"
-            value={casesTaken}
-            onChange={e => debouncedSetCasesTaken(e.target.value)}
-            className="w-full p-2 border rounded mb-4 text-black dark:text-white"
-            placeholder="Cases to take"
-            min="1"
-            disabled={isTakingStock}
-          />
-          <button
-            onClick={handleTakeStock}
-            disabled={isTakingStock}
-            className="w-full py-2 bg-indigo-600 text-white rounded disabled:opacity-50"
-          >
+          <input type="number" value={casesTaken} onChange={e => debouncedSetCasesTaken(e.target.value)} className="w-full p-2 border rounded mb-4 text-black dark:text-white" placeholder="Cases to take" min="1" disabled={isTakingStock} />
+          <button onClick={handleTakeStock} disabled={isTakingStock} className="w-full py-2 bg-indigo-600 text-white rounded disabled:opacity-50">
             {isTakingStock ? 'Submitting...' : 'Take'}
           </button>
         </div>
       </Modal>
+
       {/* Add Modal */}
-      <Modal
-        isOpen={addModalIsOpen}
-        onRequestClose={() => { setAddModalIsOpen(false); setCasesToAdd(''); setSelectedStock(null); }}
-        className="fixed inset-0 flex items-center justify-center p-4"
-        overlayClassName="fixed inset-0 bg-black/50"
-      >
+      <Modal isOpen={addModalIsOpen} onRequestClose={() => { setAddModalIsOpen(false); setCasesToAdd(''); setSelectedStock(null); }} className="fixed inset-0 flex items-center justify-center p-4" overlayClassName="fixed inset-0 bg-black/50">
         <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-lg font-bold text-black dark:text-white">Add Cases</h2>
             <button onClick={() => setAddModalIsOpen(false)}><FaTimes /></button>
           </div>
-          <input
-            type="number"
-            value={casesToAdd}
-            onChange={e => debouncedSetCasesToAdd(e.target.value)}
-            className="w-full p-2 border rounded mb-4 text-black dark:text-white"
-            placeholder="Cases to add"
-            min="1"
-          />
-          <button onClick={handleAddStock} className="w-full py-2 bg-indigo-600 text-white rounded">
-            Add
-          </button>
+          <input type="number" value={casesToAdd} onChange={e => debouncedSetCasesToAdd(e.target.value)} className="w-full p-2 border rounded mb-4 text-black dark:text-white" placeholder="Cases to add" min="1" />
+          <button onClick={handleAddStock} className="w-full py-2 bg-indigo-600 text-white rounded">Add</button>
         </div>
       </Modal>
-      {/* History Modal - WITH AGENT COLUMN */}
-      <Modal
-        isOpen={historyModalIsOpen}
-        onRequestClose={() => { setHistoryModalIsOpen(false); setStockHistory([]); }}
-        className="fixed inset-0 flex items-center justify-center p-4"
-        overlayClassName="fixed inset-0 bg-black/50"
-      >
+
+      {/* History Modal */}
+      <Modal isOpen={historyModalIsOpen} onRequestClose={() => { setHistoryModalIsOpen(false); setStockHistory([]); }} className="fixed inset-0 flex items-center justify-center p-4" overlayClassName="fixed inset-0 bg-black/50">
         <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-4xl w-full max-h-[80vh] overflow-y-auto">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-lg font-bold text-black dark:text-white">Stock History</h2>
@@ -518,13 +541,9 @@ export default function GodownDetail() {
           {stockHistory.length === 0 && <p className="text-center mt-4 text-gray-500">No history</p>}
         </div>
       </Modal>
+
       {/* Download Modal */}
-      <Modal
-        isOpen={showDownloadModal}
-        onRequestClose={() => setShowDownloadModal(false)}
-        className="fixed inset-0 flex items-center justify-center p-4"
-        overlayClassName="fixed inset-0 bg-black/50"
-      >
+      <Modal isOpen={showDownloadModal} onRequestClose={() => setShowDownloadModal(false)} className="fixed inset-0 flex items-center justify-center p-4" overlayClassName="fixed inset-0 bg-black/50">
         <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full">
           <h3 className="text-lg font-bold mb-4 text-black dark:text-white">Download Stock History</h3>
           <div className="space-y-3">
@@ -537,50 +556,27 @@ export default function GodownDetail() {
               <span className='text-black dark:text-white'>Specific Date</span>
             </label>
             {downloadMode === 'date' && (
-              <DatePicker
-                selected={selectedDate}
-                onChange={d => setSelectedDate(d)}
-                className="w-full p-2 border rounded dark:bg-gray-700 text-black dark:text-white"
-                placeholderText="Select date"
-                dateFormat="yyyy-MM-dd"
-              />
+              <DatePicker selected={selectedDate} onChange={d => setSelectedDate(d)} className="w-full p-2 border rounded dark:bg-gray-700 text-black dark:text-white" placeholderText="Select date" dateFormat="yyyy-MM-dd" />
             )}
             <label className="flex items-center gap-2">
               <input type="radio" name="mode" value="month" checked={downloadMode === 'month'} onChange={e => setDownloadMode(e.target.value)} />
               <span className='text-black dark:text-white'>Specific Month</span>
             </label>
             {downloadMode === 'month' && (
-              <DatePicker
-                selected={selectedMonth}
-                onChange={d => setSelectedMonth(d)}
-                showMonthYearPicker
-                dateFormat="MM/yyyy"
-                className="w-full p-2 border rounded dark:bg-gray-700 text-black dark:text-white"
-                placeholderText="Select month"
-              />
+              <DatePicker selected={selectedMonth} onChange={d => setSelectedMonth(d)} showMonthYearPicker dateFormat="MM/yyyy" className="w-full p-2 border rounded dark:bg-gray-700 text-black dark:text-white" placeholderText="Select month" />
             )}
           </div>
           <div className="flex justify-end gap-2 mt-6">
-            <button onClick={() => setShowDownloadModal(false)} className="px-4 py-2 text-black dark:text-white">
-              Cancel
-            </button>
-            <button
-              onClick={confirmDownload}
-              disabled={isLoadingHistory || (downloadMode === 'date' && !selectedDate) || (downloadMode === 'month' && !selectedMonth)}
-              className="px-4 py-2 bg-blue-600 rounded disabled:opacity-50 text-white"
-            >
+            <button onClick={() => setShowDownloadModal(false)} className="px-4 py-2 text-black dark:text-white">Cancel</button>
+            <button onClick={confirmDownload} disabled={isLoadingHistory || (downloadMode === 'date' && !selectedDate) || (downloadMode === 'month' && !selectedMonth)} className="px-4 py-2 bg-blue-600 rounded disabled:opacity-50 text-white">
               {isLoadingHistory ? 'Loading...' : 'Download'}
             </button>
           </div>
         </div>
       </Modal>
+
       {/* Unique Products Modal */}
-      <Modal
-        isOpen={showUniqueProductsModal}
-        onRequestClose={() => setShowUniqueProductsModal(false)}
-        className="fixed inset-0 flex items-center justify-center p-4"
-        overlayClassName="fixed inset-0 bg-black/50"
-      >
+      <Modal isOpen={showUniqueProductsModal} onRequestClose={() => setShowUniqueProductsModal(false)} className="fixed inset-0 flex items-center justify-center p-4" overlayClassName="fixed inset-0 bg-black/50">
         <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto">
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-lg font-bold text-black dark:text-white">Unique Products</h3>
@@ -606,13 +602,9 @@ export default function GodownDetail() {
           </table>
         </div>
       </Modal>
+
       {/* Total Cases Modal */}
-      <Modal
-        isOpen={showTotalCasesModal}
-        onRequestClose={() => setShowTotalCasesModal(false)}
-        className="fixed inset-0 flex items-center justify-center p-4"
-        overlayClassName="fixed inset-0 bg-black/50"
-      >
+      <Modal isOpen={showTotalCasesModal} onRequestClose={() => setShowTotalCasesModal(false)} className="fixed inset-0 flex items-center justify-center p-4" overlayClassName="fixed inset-0 bg-black/50">
         <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto">
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-lg font-bold text-black dark:text-white">Total Cases</h3>
@@ -636,6 +628,7 @@ export default function GodownDetail() {
           </table>
         </div>
       </Modal>
+
       <style>{`
         .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
         [style*="backgroundDark"] { background: var(--bg, ${styles.input.background}); }

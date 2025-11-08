@@ -118,7 +118,7 @@ export default function Search() {
               disabled={loading || (selectedType === 'all' && !searchName.trim())}
               className="px-5 mobile:px-4 py-2 mobile:py-1.5 bg-blue-600 text-white rounded-md text-sm mobile:text-xs disabled:opacity-50 hover:bg-blue-700 transition"
             >
-              {loading ? 'Searching...' : 'Search Search'}
+              {loading ? 'Searching...' : 'Search'}
             </button>
           </div>
 
