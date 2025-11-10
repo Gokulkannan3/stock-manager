@@ -220,7 +220,6 @@ export default function StockAnalysis() {
                   <thead className="bg-gray-50 dark:bg-gray-700">
                     <tr>
                       <th className="px-4 mobile:px-3 py-3 mobile:py-2 text-left hundred:text-lg mobile:text-[10px] text-gray-500 dark:text-gray-300 uppercase">No</th>
-                      <th className="px-4 mobile:px-3 py-3 mobile:py-2 text-left hundred:text-lg mobile:text-[10px] text-gray-500 dark:text-gray-300 uppercase">Type</th>
                       <th className="px-4 mobile:px-3 py-3 mobile:py-2 text-left hundred:text-lg mobile:text-[10px] text-gray-500 dark:text-gray-300 uppercase">Product</th>
                       <th className="px-4 mobile:px-3 py-3 mobile:py-2 text-left hundred:text-lg mobile:text-[10px] text-gray-500 dark:text-gray-300 uppercase">Brand</th>
                       <th className="px-4 mobile:px-3 py-3 mobile:py-2 text-left hundred:text-lg mobile:text-[10px] text-gray-500 dark:text-gray-300 uppercase">Agent</th>
@@ -231,7 +230,6 @@ export default function StockAnalysis() {
                     {data.productSummary.map((p, i) => (
                       <tr key={i}>
                         <td className="px-4 mobile:px-3 py-3 mobile:py-2 hundred:text-lg mobile:text-xs text-black dark:text-white">{i + 1}</td>
-                        <td className="px-4 mobile:px-3 py-3 mobile:py-2 hundred:text-lg mobile:text-xs text-black dark:text-white">{capitalize(p.product_type)}</td>
                         <td className="px-4 mobile:px-3 py-3 mobile:py-2 hundred:text-lg mobile:text-xs text-black dark:text-white">{p.productname}</td>
                         <td className="px-4 mobile:px-3 py-3 mobile:py-2 hundred:text-lg mobile:text-xs text-black dark:text-white">{capitalize(p.brand)}</td>
                         <td className="px-4 mobile:px-3 py-3 mobile:py-2 hundred:text-lg mobile:text-xs text-sky-300">{p.agent_name}</td>
