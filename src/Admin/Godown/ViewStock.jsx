@@ -19,6 +19,11 @@ export default function ViewStock() {
   const itemsPerPage = 16;
   const navigate = useNavigate();
 
+  // Get userType safely
+  const userType = (localStorage.getItem('userType') || 'worker').toLowerCase();
+  const isWorkerOrAgent = ['worker', 'agent'].includes(userType);
+  const isAdmin = userType === 'admin';
+
   const styles = {
     button: {
       background: "linear-gradient(135deg, rgba(2,132,199,0.9), rgba(14,165,233,0.95))",
@@ -34,12 +39,14 @@ export default function ViewStock() {
   // SAFE CAPITALIZE
   const capitalize = (str) => {
     if (!str || typeof str !== 'string') return '';
-    return str.split('_').map(word =>
-      word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
-    ).join(' ');
+    return str
+      .toLowerCase()
+      .split('_')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
   };
 
-  // FETCH WITH ERROR HANDLING
+  // FETCH GODOWNS
   const fetchGodowns = async () => {
     setLoading(true);
     setError('');
@@ -61,22 +68,22 @@ export default function ViewStock() {
     fetchGodowns();
   }, []);
 
-  // SEARCH FILTER
+  // SEARCH FILTER (Admin only)
   useEffect(() => {
+    if (!isAdmin) return;
     const query = searchQuery.toLowerCase().trim();
     const filtered = godowns.filter(g =>
       g.name?.toLowerCase().includes(query)
     );
     setFilteredGodowns(filtered);
     setCurrentPage(1);
-  }, [searchQuery, godowns]);
+  }, [searchQuery, godowns, isAdmin]);
 
-  // PAGINATION
-  const totalPages = Math.ceil(filteredGodowns.length / itemsPerPage);
-  const paginatedGodowns = filteredGodowns.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
+  // PAGINATION (Admin only)
+  const totalPages = isAdmin ? Math.ceil(filteredGodowns.length / itemsPerPage) : 1;
+  const paginatedGodowns = isAdmin
+    ? filteredGodowns.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+    : filteredGodowns;
 
   const goToPage = (page) => {
     if (page >= 1 && page <= totalPages) {
@@ -118,7 +125,7 @@ export default function ViewStock() {
     }
   };
 
-  // DELETE WITH MODAL
+  // DELETE MODAL
   const openDeleteModal = (id) => {
     const godown = godowns.find(g => g.id === id);
     if (!godown) return;
@@ -145,7 +152,7 @@ export default function ViewStock() {
     setDeleteModal({ open: false, id: null, name: '' });
   };
 
-  // FULL LOADING SCREEN
+  // LOADING SCREEN
   if (loading) {
     return (
       <div className="flex min-h-screen bg-gray-100 dark:bg-gray-900">
@@ -172,7 +179,7 @@ export default function ViewStock() {
 
           {/* Header */}
           <h2 className="text-2xl mobile:text-xl text-center font-bold text-gray-900 dark:text-gray-100 mb-4">
-            View Godowns
+            {isWorkerOrAgent ? 'My Godowns' : 'View Godowns'}
           </h2>
 
           {/* Error */}
@@ -182,17 +189,19 @@ export default function ViewStock() {
             </div>
           )}
 
-          {/* Search Bar */}
-          <div className="mb-6 relative max-w-md mx-auto">
-            <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
-            <input
-              type="text"
-              placeholder="Search by godown name..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
+          {/* Search Bar (Admin Only) */}
+          {isAdmin && (
+            <div className="mb-6 relative max-w-md mx-auto">
+              <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
+              <input
+                type="text"
+                placeholder="Search by godown name..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          )}
 
           {/* Results Count */}
           <p className="text-center text-sm text-gray-600 dark:text-gray-400 mb-4">
@@ -209,8 +218,20 @@ export default function ViewStock() {
               paginatedGodowns.map(g => (
                 <div
                   key={g.id}
-                  className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mobile:p-4 border border-gray-200 dark:border-gray-700"
+                  className="relative bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mobile:p-4 border border-gray-200 dark:border-gray-700"
                 >
+                  {/* View Icon (Top-Right) - Worker/Agent */}
+                  {isWorkerOrAgent && (
+                    <button
+                      onClick={() => handleView(g.id)}
+                      className="absolute top-3 right-3 p-2 rounded-full bg-blue-600 text-white hover:bg-blue-700 transition shadow-md"
+                      title="View Godown"
+                    >
+                      <FaEye className="h-4 w-4" />
+                    </button>
+                  )}
+
+                  {/* Edit Mode */}
                   {editingId === g.id ? (
                     <div className="space-y-3">
                       <input
@@ -238,7 +259,7 @@ export default function ViewStock() {
                     </div>
                   ) : (
                     <>
-                      <h3 className="text-lg mobile:text-base font-semibold text-gray-900 dark:text-gray-100 mb-2">
+                      <h3 className="text-lg mobile:text-base font-semibold text-gray-900 dark:text-gray-100 mb-2 pr-10">
                         {capitalize(g.name)}
                       </h3>
                       <div className="text-sm text-gray-600 dark:text-gray-400 space-y-1 mb-3">
@@ -246,29 +267,32 @@ export default function ViewStock() {
                         <p>Items: <strong>{g.stock_items || 0}</strong></p>
                       </div>
 
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => handleView(g.id)}
-                          className="flex-1 flex items-center justify-center gap-1 py-2 text-xs text-white rounded transition"
-                          style={{ background: styles.button.background }}
-                        >
-                          <FaEye /> View
-                        </button>
+                      {/* Admin: Full Action Buttons */}
+                      {isAdmin && (
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleView(g.id)}
+                            className="flex-1 flex items-center justify-center gap-1 py-2 text-xs text-white rounded transition"
+                            style={{ background: styles.button.background }}
+                          >
+                            <FaEye /> View
+                          </button>
 
-                        <button
-                          onClick={() => startEdit(g.id, g.name)}
-                          className="flex-1 flex items-center justify-center gap-1 py-2 text-xs bg-amber-600 text-white rounded hover:bg-amber-700 transition"
-                        >
-                          <FaEdit /> Edit
-                        </button>
+                          <button
+                            onClick={() => startEdit(g.id, g.name)}
+                            className="flex-1 flex items-center justify-center gap-1 py-2 text-xs bg-amber-600 text-white rounded hover:bg-amber-700 transition"
+                          >
+                            <FaEdit /> Edit
+                          </button>
 
-                        <button
-                          onClick={() => openDeleteModal(g.id)}
-                          className="flex-1 flex items-center justify-center gap-1 py-2 text-xs bg-red-600 text-white rounded hover:bg-red-700 transition"
-                        >
-                          <FaTrash /> Delete
-                        </button>
-                      </div>
+                          <button
+                            onClick={() => openDeleteModal(g.id)}
+                            className="flex-1 flex items-center justify-center gap-1 py-2 text-xs bg-red-600 text-white rounded hover:bg-red-700 transition"
+                          >
+                            <FaTrash /> Delete
+                          </button>
+                        </div>
+                      )}
                     </>
                   )}
                 </div>
@@ -276,8 +300,8 @@ export default function ViewStock() {
             )}
           </div>
 
-          {/* Pagination */}
-          {totalPages > 1 && (
+          {/* Pagination (Admin Only) */}
+          {isAdmin && totalPages > 1 && (
             <div className="flex justify-center items-center gap-2 mt-6">
               <button
                 onClick={() => goToPage(currentPage - 1)}
@@ -317,7 +341,7 @@ export default function ViewStock() {
 
       {/* DELETE CONFIRMATION MODAL */}
       {deleteModal.open && (
-        <div className="fixed inset-0 bg-black/50 bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-sm w-full shadow-xl">
             <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">
               Confirm Delete

@@ -10,7 +10,7 @@ Modal.setAppElement('#root');
 
 export default function Inventory() {
   const [focused, setFocused] = useState({});
-  const [values, setValues] = useState({ productName: '', price: '', caseCount: '', perCase: '', brand: '' });
+  const [values, setValues] = useState({ productName: '', price: '', perCase: '', brand: '' }); // Removed caseCount
   const [productType, setProductType] = useState('');
   const [newProductType, setNewProductType] = useState('');
   const [productTypes, setProductTypes] = useState([]);
@@ -89,7 +89,7 @@ export default function Inventory() {
 
   const handleProductTypeChange = (e) => {
     setProductType(e.target.value);
-    setValues({ productName: '', price: '', caseCount: '', perCase: '', brand: '' });
+    setValues({ productName: '', price: '', perCase: '', brand: '' });
     setError(''); setSuccess('');
   };
 
@@ -131,13 +131,12 @@ export default function Inventory() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!values.productName || !values.price || !values.caseCount || !values.perCase || !values.brand || !productType)
+    if (!values.productName || !values.price || !values.perCase || !values.brand || !productType)
       return setError('All fields required');
 
     const payload = {
       productname: values.productName,
       price: values.price,
-      case_count: values.caseCount,
       per_case: values.perCase,
       brand: values.brand,
       product_type: productType,
@@ -152,7 +151,7 @@ export default function Inventory() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message);
       setSuccess('Product saved!');
-      setValues({ productName: '', price: '', caseCount: '', perCase: '', brand: '' });
+      setValues({ productName: '', price: '', perCase: '', brand: '' });
     } catch (err) { setError(err.message); }
   };
 
@@ -214,7 +213,74 @@ export default function Inventory() {
 
           <div className="space-y-10 mobile:space-y-8">
 
-            {/* Create Brand & Product Type */}
+            {/* === SELECT PRODUCT TYPE (TOP) === */}
+            <div>
+              <label className="block text-base mobile:text-sm font-semibold text-gray-900 dark:text-gray-300 mb-2">Select Product Type</label>
+              <select
+                value={productType}
+                onChange={handleProductTypeChange}
+                className="w-full rounded-lg px-4 mobile:px-3 py-3 mobile:py-2.5 text-lg mobile:text-base border border-gray-300 dark:border-gray-600"
+                style={{ background: styles.input.background, border: styles.input.border, backdropFilter: styles.input.backdropFilter }}
+              >
+                <option value="">Select Type</option>
+                {productTypes.map(t => (
+                  <option key={t} value={t} className="text-base">{formatDisplay(t)}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* === PRODUCT FORM (TOP) === */}
+            {productType && (
+              <form onSubmit={handleSubmit} className="space-y-8 mobile:space-y-6 border-b border-gray-900/10 dark:border-gray-700 pb-10 mobile:pb-8">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mobile:gap-5">
+                  {['productName', 'price', 'perCase'].map(field => (
+                    <div key={field}>
+                      <label className="block text-base mobile:text-sm font-semibold text-gray-900 dark:text-gray-300 mb-2">
+                        {field === 'productName' ? 'Product Name*' : field === 'price' ? 'Price (INR)*' : 'Quantity / case'}
+                      </label>
+                      <input
+                        type={field.includes('price') ? 'number' : field.includes('Case') ? 'number' : 'text'}
+                        value={values[field] || ''}
+                        onChange={e => handleChange(field, e)}
+                        onFocus={() => handleFocus(field)}
+                        onBlur={() => handleBlur(field)}
+                        min="0"
+                        step={field === 'price' ? '0.01' : '1'}
+                        required
+                        className="w-full rounded-lg px-4 mobile:px-3 py-3 mobile:py-2.5 text-lg mobile:text-base border border-gray-300 dark:border-gray-600"
+                        style={{ background: styles.input.background, border: styles.input.border, backdropFilter: styles.input.backdropFilter }}
+                      />
+                    </div>
+                  ))}
+                  <div>
+                    <label className="block text-base mobile:text-sm font-semibold text-gray-900 dark:text-gray-300 mb-2">Brand*</label>
+                    <select
+                      value={values.brand || ''}
+                      onChange={e => handleChange('brand', e)}
+                      required
+                      className="w-full rounded-lg px-4 mobile:px-3 py-3 mobile:py-2.5 text-lg mobile:text-base border border-gray-300 dark:border-gray-600"
+                      style={{ background: styles.input.background, border: styles.input.border, backdropFilter: styles.input.backdropFilter }}
+                    >
+                      <option value="">Select Brand</option>
+                      {brands.map(b => (
+                        <option key={b.id} value={b.name} className="text-base">{formatDisplay(b.name)}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div className="flex justify-end gap-4 mobile:gap-3">
+                  <button type="button" onClick={() => { setValues({ productName: '', price: '', perCase: '', brand: '' }); setProductType(''); }} className="text-base mobile:text-sm font-medium text-gray-900 dark:text-gray-100">
+                    Cancel
+                  </button>
+                  <button type="submit" className="rounded-lg px-6 mobile:px-4 py-3 mobile:py-2.5 text-base mobile:text-sm font-semibold text-white shadow-md"
+                    style={{ background: styles.button.background, border: styles.button.border, boxShadow: styles.button.boxShadow }}>
+                    Save Product
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* === CREATE BRAND & PRODUCT TYPE (BELOW) === */}
             <div className="border-b border-gray-900/10 dark:border-gray-700 pb-10 mobile:pb-8">
               <div className="grid grid-cols-1 gap-8 mobile:gap-6">
 
@@ -269,77 +335,10 @@ export default function Inventory() {
                     </button>
                   </div>
                 </div>
-
-                {/* Select Product Type */}
-                <div>
-                  <label className="block text-base mobile:text-sm font-semibold text-gray-900 dark:text-gray-300 mb-2">Select Product Type</label>
-                  <select
-                    value={productType}
-                    onChange={handleProductTypeChange}
-                    className="w-full rounded-lg px-4 mobile:px-3 py-3 mobile:py-2.5 text-lg mobile:text-base border border-gray-300 dark:border-gray-600"
-                    style={{ background: styles.input.background, border: styles.input.border, backdropFilter: styles.input.backdropFilter }}
-                  >
-                    <option value="">Select Type</option>
-                    {productTypes.map(t => (
-                      <option key={t} value={t} className="text-base">{formatDisplay(t)}</option>
-                    ))}
-                  </select>
-                </div>
               </div>
             </div>
 
-            {/* Product Form */}
-            {productType && (
-              <form onSubmit={handleSubmit} className="space-y-8 mobile:space-y-6">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mobile:gap-5">
-                  {['productName', 'price', 'caseCount', 'perCase'].map(field => (
-                    <div key={field}>
-                      <label className="block text-base mobile:text-sm font-semibold text-gray-900 dark:text-gray-300 mb-2">
-                        {field === 'productName' ? 'Product Name*' : field === 'price' ? 'Price (INR)*' : field === 'caseCount' ? 'Case Count*' : 'Per Case*'}
-                      </label>
-                      <input
-                        type={field.includes('price') ? 'number' : field.includes('Count') || field.includes('Case') ? 'number' : 'text'}
-                        value={values[field] || ''}
-                        onChange={e => handleChange(field, e)}
-                        onFocus={() => handleFocus(field)}
-                        onBlur={() => handleBlur(field)}
-                        min="0"
-                        step={field === 'price' ? '0.01' : '1'}
-                        required
-                        className="w-full rounded-lg px-4 mobile:px-3 py-3 mobile:py-2.5 text-lg mobile:text-base border border-gray-300 dark:border-gray-600"
-                        style={{ background: styles.input.background, border: styles.input.border, backdropFilter: styles.input.backdropFilter }}
-                      />
-                    </div>
-                  ))}
-                  <div>
-                    <label className="block text-base mobile:text-sm font-semibold text-gray-900 dark:text-gray-300 mb-2">Brand*</label>
-                    <select
-                      value={values.brand || ''}
-                      onChange={e => handleChange('brand', e)}
-                      required
-                      className="w-full rounded-lg px-4 mobile:px-3 py-3 mobile:py-2.5 text-lg mobile:text-base border border-gray-300 dark:border-gray-600"
-                      style={{ background: styles.input.background, border: styles.input.border, backdropFilter: styles.input.backdropFilter }}
-                    >
-                      <option value="">Select Brand</option>
-                      {brands.map(b => (
-                        <option key={b.id} value={b.name} className="text-base">{formatDisplay(b.name)}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-                <div className="flex justify-end gap-4 mobile:gap-3">
-                  <button type="button" onClick={() => { setValues({}); setProductType(''); }} className="text-base mobile:text-sm font-medium text-gray-900 dark:text-gray-100">
-                    Cancel
-                  </button>
-                  <button type="submit" className="rounded-lg px-6 mobile:px-4 py-3 mobile:py-2.5 text-base mobile:text-sm font-semibold text-white shadow-md"
-                    style={{ background: styles.button.background, border: styles.button.border, boxShadow: styles.button.boxShadow }}>
-                    Save Product
-                  </button>
-                </div>
-              </form>
-            )}
-
-            {/* Brand Cards */}
+            {/* === BRAND CARDS (BOTTOM) === */}
             <div className="mt-12 mobile:mt-10">
               <h3 className="text-2xl mobile:text-xl font-bold mb-5 mobile:mb-4 text-gray-900 dark:text-gray-100">All Brands</h3>
               <input

@@ -5,7 +5,7 @@ import Logout from '../Logout';
 import Select from 'react-select';
 import Modal from 'react-modal';
 import { API_BASE_URL } from '../../../Config';
-import { FaPlus, FaTrash, FaFilePdf, FaSpinner, FaDownload, FaTimes, FaSearch } from 'react-icons/fa';
+import { FaPlus, FaTrash, FaFilePdf, FaSpinner, FaDownload, FaTimes, FaSearch, FaChevronDown, FaChevronUp } from 'react-icons/fa';
 
 Modal.setAppElement("#root");
 
@@ -46,6 +46,8 @@ export default function Booking() {
   const [loadingStock, setLoadingStock] = useState(false);
   const [loadingPDF, setLoadingPDF] = useState(false);
 
+  const [isCustomerDetailsOpen, setIsCustomerDetailsOpen] = useState(true); // Collapsible
+
   const searchInputRef = useRef(null);
 
   const styles = {
@@ -72,6 +74,29 @@ export default function Booking() {
     return str.toLowerCase().split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
   };
 
+  const shortenGodownName = (name) => {
+    if (!name) return '';
+
+    // Replace underscores with spaces and trim
+    const cleaned = name.replace(/_/g, ' ').trim();
+
+    // Split into words
+    const words = cleaned.split(/\s+/).filter(Boolean); // filter removes empty strings
+
+    // If only ONE word → return it as-is (original case preserved, but you can lowercase if needed)
+    if (words.length === 1) {
+      return cleaned; // or: words[0] to get just the word
+    }
+
+    // Otherwise, shorten: take first letter of each word, keep numbers
+    return words
+      .map(word => {
+        if (/^\d+$/.test(word)) return word; // Keep pure numbers
+        return word.charAt(0).toUpperCase();
+      })
+      .join('');
+  };
+
   /* ────────────────────── FETCH GODOWNS (value as Number) ────────────────────── */
   const fetchGodowns = useCallback(async () => {
     setLoadingGodowns(true);
@@ -81,7 +106,8 @@ export default function Booking() {
       const data = await res.json();
       const options = data.map(g => ({
         value: Number(g.id),
-        label: capitalize(g.name)
+        label: capitalize(g.name),
+        shortName: shortenGodownName(g.name)
       }));
       setGodowns(options);
     } catch {
@@ -100,7 +126,11 @@ export default function Booking() {
       const res = await fetch(`${API_BASE_URL}/api/customers`);
       if (!res.ok) throw new Error();
       const data = await res.json();
-      setCustomers(data);
+      const enriched = data.map(c => ({
+        label: `${c.value.name} (${c.value.to || 'Unknown'})`,
+        value: c.value
+      }));
+      setCustomers(enriched);
     } catch {
       setError('Failed to load customers');
     } finally {
@@ -113,15 +143,16 @@ export default function Booking() {
   /* ────────────────────── AUTO-FILL CUSTOMER ────────────────────── */
   useEffect(() => {
     if (selectedCustomer) {
+      const cust = selectedCustomer.value;
       setCustomer({
-        name: selectedCustomer.value.name,
-        address: selectedCustomer.value.address,
-        gstin: selectedCustomer.value.gstin,
-        lr_number: selectedCustomer.value.lr_number,
-        agent_name: selectedCustomer.value.agent_name,
-        from: selectedCustomer.value.from,
-        to: selectedCustomer.value.to,
-        through: selectedCustomer.value.through
+        name: cust.name,
+        address: cust.address,
+        gstin: cust.gstin,
+        lr_number: cust.lr_number,
+        agent_name: cust.agent_name,
+        from: cust.from,
+        to: cust.to,
+        through: cust.through
       });
     }
   }, [selectedCustomer]);
@@ -180,7 +211,8 @@ export default function Booking() {
             current_cases: p.current_cases || 0,
             rate_per_box: parseFloat(p.rate_per_box) || 0,
             godown_name: p.godown_name,
-            godown_id: Number(p.godown_id)
+            godown_id: Number(p.godown_id),
+            shortGodown: shortenGodownName(p.godown_name)
           })))
           .then(products => {
             setGlobalProducts(products);
@@ -242,7 +274,6 @@ export default function Booking() {
       return setError('Godown not found');
     }
 
-    // Auto-select only if not already selected
     if (!selectedGodown || selectedGodown.value !== godownId) {
       setSelectedGodown({ ...godownOption, isAutoSelected: true });
     }
@@ -256,14 +287,14 @@ export default function Booking() {
       current_cases: product.current_cases,
       cases: 1,
       discount: 0,
-      godown: product.godown_name,
+      godown: product.shortGodown, // ← SHORT NAME
       rate_per_box: product.rate_per_box
     }]);
 
     setSearchQuery('');
     setGlobalProducts([]);
     setHighlightedIndex(-1);
-    setSuccess(`Added: ${product.productname} from ${product.godown_name}`);
+    setSuccess(`Added: ${product.productname} from ${product.shortGodown}`);
     setTimeout(() => setSuccess(''), 2000);
     setTimeout(() => searchInputRef.current?.focus(), 100);
   };
@@ -277,6 +308,7 @@ export default function Booking() {
         if (exists.cases + 1 > item.current_cases) return prev;
         return prev.map(i => i.id === item.id ? { ...i, cases: i.cases + 1 } : i);
       }
+      const shortGodown = selectedGodown?.shortName || 'Unknown';
       return [...prev, {
         id: Number(item.id),
         product_type: item.product_type,
@@ -286,7 +318,7 @@ export default function Booking() {
         current_cases: item.current_cases,
         cases: 1,
         discount: 0,
-        godown: selectedGodown.label,
+        godown: shortGodown, // ← SHORT NAME
         rate_per_box: item.rate_per_box
       }];
     });
@@ -362,7 +394,7 @@ export default function Booking() {
       additional_discount: additionalDiscount,
       packing_percent: packingPercent,
       taxable_value: taxableValue ? parseFloat(taxableValue) : null,
-      stock_from: selectedGodown.label,
+      stock_from: selectedGodown.shortName, // ← SHORT NAME
       items: cart.map(i => ({
         id: i.id,
         product_type: i.product_type,
@@ -371,7 +403,7 @@ export default function Booking() {
         cases: i.cases,
         per_case: i.per_case,
         discount_percent: i.discount,
-        godown: i.godown,
+        godown: i.godown, // ← SHORT NAME
         rate_per_box: i.rate_per_box
       }))
     };
@@ -465,19 +497,147 @@ export default function Booking() {
               )}
             </div>
 
-            {/* CUSTOMER DETAILS */}
-            <div className="bg-white dark:bg-gray-800 p-3 mobile:p-4 rounded-lg shadow">
-              <h3 className="text-sm mobile:text-md font-semibold mb-3 text-black dark:text-white">Customer Details</h3>
-              <div className="grid grid-cols-1 mobile:grid-cols-2 gap-2 mobile:gap-3 text-xs mobile:text-sm">
-                <input placeholder="Party Name *" value={customer.name} onChange={e => setCustomer({ ...customer, name: e.target.value })} className="rounded px-2 py-1.5 border" style={styles.input} />
-                <input placeholder="Address" value={customer.address} onChange={e => setCustomer({ ...customer, address: e.target.value })} className="rounded px-2 py-1.5 border" style={styles.input} />
-                <input placeholder="GSTIN" value={customer.gstin} onChange={e => setCustomer({ ...customer, gstin: e.target.value })} className="rounded px-2 py-1.5 border" style={styles.input} />
-                <input placeholder="L.R. Number" value={customer.lr_number} onChange={e => setCustomer({ ...customer, lr_number: e.target.value })} className="rounded px-2 py-1.5 border" style={styles.input} />
-                <input placeholder="Agent Name" value={customer.agent_name} onChange={e => setCustomer({ ...customer, agent_name: e.target.value })} className="rounded px-2 py-1.5 border" style={styles.input} />
-                <input placeholder="From (e.g. SIVAKASI) *" value={customer.from} onChange={e => setCustomer({ ...customer, from: e.target.value })} className="rounded px-2 py-1.5 border" style={styles.input} />
-                <input placeholder="To (e.g. BOMMIDI) *" value={customer.to} onChange={e => setCustomer({ ...customer, to: e.target.value })} className="rounded px-2 py-1.5 border" style={styles.input} />
-                <input placeholder="Through (e.g. ABI TPT) *" value={customer.through} onChange={e => setCustomer({ ...customer, through: e.target.value })} className="rounded px-2 py-1.5 border" style={styles.input} />
+            {/* COLLAPSIBLE CUSTOMER DETAILS + CART BELOW */}
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+
+              {/* CUSTOMER DETAILS (COLLAPSIBLE) */}
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden mb-4">
+                <button
+                  onClick={() => setIsCustomerDetailsOpen(!isCustomerDetailsOpen)}
+                  className="w-full p-3 mobile:p-4 flex justify-between items-center text-left font-semibold text-black dark:text-white bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 transition"
+                >
+                  <span>Customer Details</span>
+                  {isCustomerDetailsOpen ? <FaChevronUp /> : <FaChevronDown />}
+                </button>
+
+                {isCustomerDetailsOpen && (
+                  <div className="p-3 mobile:p-4">
+                    <div className="grid grid-cols-1 mobile:grid-cols-2 gap-2 mobile:gap-3 text-xs mobile:text-sm">
+                      <input placeholder="Party Name *" value={customer.name} onChange={e => setCustomer({ ...customer, name: e.target.value })} className="rounded px-2 py-1.5 border" style={styles.input} />
+                      <input placeholder="Address" value={customer.address} onChange={e => setCustomer({ ...customer, address: e.target.value })} className="rounded px-2 py-1.5 border" style={styles.input} />
+                      <input placeholder="GSTIN" value={customer.gstin} onChange={e => setCustomer({ ...customer, gstin: e.target.value })} className="rounded px-2 py-1.5 border" style={styles.input} />
+                      <input placeholder="L.R. Number" value={customer.lr_number} onChange={e => setCustomer({ ...customer, lr_number: e.target.value })} className="rounded px-2 py-1.5 border" style={styles.input} />
+                      <input placeholder="Agent Name" value={customer.agent_name} onChange={e => setCustomer({ ...customer, agent_name: e.target.value })} className="rounded px-2 py-1.5 border" style={styles.input} />
+                      <input placeholder="From (e.g. SIVAKASI) *" value={customer.from} onChange={e => setCustomer({ ...customer, from: e.target.value })} className="rounded px-2 py-1.5 border" style={styles.input} />
+                      <input placeholder="To (e.g. BOMMIDI) *" value={customer.to} onChange={e => setCustomer({ ...customer, to: e.target.value })} className="rounded px-2 py-1.5 border" style={styles.input} />
+                      <input placeholder="Through (e.g. ABI TPT) *" value={customer.through} onChange={e => setCustomer({ ...customer, through: e.target.value })} className="rounded px-2 py-1.5 border" style={styles.input} />
+                    </div>
+                  </div>
+                )}
               </div>
+
+              {/* CART & TOTALS – ALWAYS VISIBLE */}
+              {cart.length > 0 && (
+                <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-3 mobile:p-4 mb-4">
+                  <h3 className="font-semibold text-sm mobile:text-base mb-3 text-black dark:text-white">Cart Items</h3>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs mobile:text-sm border-collapse">
+                      {/* ... your table head and body ... */}
+                      <thead>
+                        <tr className="border-b bg-gray-50 dark:bg-gray-700 text-black dark:text-white">
+                          <th className="p-1 mobile:p-2 border text-xs mobile:text-sm">S.No</th>
+                          <th className="p-1 mobile:p-2 border text-xs mobile:text-sm">Product</th>
+                          <th className="p-1 mobile:p-2 border text-xs mobile:text-sm">Cases</th>
+                          <th className="p-1 mobile:p-2 border text-xs mobile:text-sm">Per</th>
+                          <th className="p-1 mobile:p-2 border text-xs mobile:text-sm">Qty</th>
+                          <th className="p-1 mobile:p-2 border text-xs mobile:text-sm">Rate</th>
+                          <th className="p-1 mobile:p-2 border text-xs mobile:text-sm">Amount</th>
+                          <th className="p-1 mobile:p-2 border text-xs mobile:text-sm">From</th>
+                          <th className="p-1 mobile:p-2 border"></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {cart.map((item, idx) => {
+                          const qty = item.cases * item.per_case;
+                          const amountBefore = qty * item.rate_per_box;
+                          const discountAmt = amountBefore * (item.discount / 100);
+                          const finalAmt = amountBefore - discountAmt;
+                          return (
+                            <tr key={idx} className="border-b text-black dark:text-white">
+                              <td className="p-1 mobile:p-2 border text-center text-xs mobile:text-sm">{idx + 1}</td>
+                              <td className="p-1 mobile:p-2 border text-center text-xs mobile:text-sm truncate max-w-24 mobile:max-w-32">{item.productname}</td>
+                              <td className="p-1 mobile:p-2 border text-center">
+                                <input
+                                  type="number"
+                                  min="1"
+                                  max={item.current_cases}
+                                  value={item.cases}
+                                  onChange={e => updateCases(idx, parseInt(e.target.value))}
+                                  className="w-12 mobile:w-16 p-1 border rounded text-xs text-black"
+                                  style={styles.input}
+                                />
+                              </td>
+                              <td className="p-1 mobile:p-2 border text-center text-xs mobile:text-sm">{item.per_case}</td>
+                              <td className="p-1 mobile:p-2 border text-center text-xs mobile:text-sm">{qty}</td>
+                              <td className="p-1 mobile:p-2 border text-center text-xs mobile:text-sm">₹{(item.rate_per_box || 0).toFixed(2)}</td>
+                              <td className="p-1 mobile:p-2 border text-center text-xs mobile:text-sm">₹{finalAmt.toFixed(2)}</td>
+                              <td className="p-1 mobile:p-2 border text-center text-xs mobile:text-sm">{item.godown}</td>
+                              <td className="p-1 mobile:p-2 border text-center">
+                                <button onClick={() => removeFromCart(idx)} className="text-red-600">
+                                  <FaTrash className="h-3 w-3 mobile:h-4 mobile:w-4" />
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Summary & Inputs */}
+                  <div className="mt-4 grid grid-cols-1 mobile:grid-cols-2 gap-3 mobile:gap-4 text-xs mobile:text-sm text-black dark:text-white">
+                    <div>
+                      <p className="font-bold">No. of Cases: {calc.totalCases}</p>
+                      <p>From: {customer.from || '-'}</p>
+                      <p>To: {customer.to || '-'}</p>
+                      <p>Through: {customer.through || '-'}</p>
+                    </div>
+                    <div className="text-right space-y-1">
+                      <p>GOODS VALUE <span className="float-right">₹{calc.subtotal}</span></p>
+                      <p>SPECIAL DISCOUNT <span className="float-right">-₹{calc.addlDiscountAmt}</span></p>
+                      <p>PACKING @ {packingPercent}% <span className="float-right">₹{calc.packingCharges}</span></p>
+                      <p>TAXABLE VALUE <span className="float-right">₹{calc.taxableUsed}</span></p>
+                      <p>ROUND OFF <span className="float-right">₹{calc.roundOff}</span></p>
+                      <p className="font-bold text-green-600">NET AMOUNT <span className="float-right">₹{calc.grandTotal}</span></p>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 grid grid-cols-1 mobile:grid-cols-3 gap-3 text-xs mobile:text-sm">
+                    <div>
+                      <label className="block font-medium mb-1 text-black dark:text-white">Additional Discount (%)</label>
+                      <input
+                        type="number"
+                        value={additionalDiscount}
+                        onChange={e => setAdditionalDiscount(parseFloat(e.target.value) || 0)}
+                        className="w-full rounded px-2 py-1.5 border"
+                        style={styles.input}
+                      />
+                    </div>
+                    <div>
+                      <label className="block font-medium mb-1 text-black dark:text-white">Packing Charges (%)</label>
+                      <input
+                        type="number"
+                        step="0.1"
+                        value={packingPercent}
+                        onChange={e => setPackingPercent(parseFloat(e.target.value) || 0)}
+                        className="w-full rounded px-2 py-1.5 border"
+                        style={styles.input}
+                      />
+                    </div>
+                    <div>
+                      <label className="block font-medium mb-1 text-black dark:text-white">Additional Taxable Amount</label>
+                      <input
+                        type="number"
+                        placeholder="e.g. 1000"
+                        value={taxableValue}
+                        onChange={e => setTaxableValue(e.target.value)}
+                        className="w-full rounded px-2 py-1.5 border"
+                        style={styles.input}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* GLOBAL PRODUCT SEARCH */}
@@ -514,7 +674,7 @@ export default function Booking() {
                     >
                       <div>
                         <span className="font-medium text-sm text-black dark:text-white">{p.productname}</span>
-                        <span className="text-black dark:text-white"> ({p.godown_name})</span>
+                        <span className="text-black dark:text-white"> ({p.shortGodown})</span>
                       </div>
                       <div className="text-right">
                         <p className="text-green-600">₹{(p.rate_per_box || 0).toFixed(2)}/box</p>
@@ -614,107 +774,6 @@ export default function Booking() {
                     {godownSearchQuery ? 'No products match your search.' : 'No stock available.'}
                   </p>
                 )}
-              </div>
-            )}
-
-            {/* CART & TOTALS */}
-            {cart.length > 0 && (
-              <div className="bg-white dark:bg-gray-800 p-3 mobile:p-4 rounded-lg shadow">
-                <h3 className="text-sm mobile:text-md font-semibold mb-3 text-black dark:text-white">Cart</h3>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs mobile:text-sm border-collapse">
-                    <thead>
-                      <tr className="border-b bg-gray-50 dark:bg-gray-700 text-black dark:text-white">
-                        <th className="p-1 mobile:p-2 border text-xs mobile:text-sm">S.No</th>
-                        <th className="p-1 mobile:p-2 border text-xs mobile:text-sm">Product</th>
-                        <th className="p-1 mobile:p-2 border text-xs mobile:text-sm">Cases</th>
-                        <th className="p-1 mobile:p-2 border text-xs mobile:text-sm">Per</th>
-                        <th className="p-1 mobile:p-2 border text-xs mobile:text-sm">Qty</th>
-                        <th className="p-1 mobile:p-2 border text-xs mobile:text-sm">Rate</th>
-                        {/* <th className="p-1 mobile:p-2 border text-xs mobile:text-sm">Disc %</th> */}
-                        <th className="p-1 mobile:p-2 border text-xs mobile:text-sm">Amount</th>
-                        <th className="p-1 mobile:p-2 border text-xs mobile:text-sm">From</th>
-                        <th className="p-1 mobile:p-2 border"></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {cart.map((item, idx) => {
-                        const qty = item.cases * item.per_case;
-                        const amountBefore = qty * item.rate_per_box;
-                        const discountAmt = amountBefore * (item.discount / 100);
-                        const finalAmt = amountBefore - discountAmt;
-                        return (
-                          <tr key={idx} className="border-b text-black dark:text-white">
-                            <td className="p-1 mobile:p-2 border text-center text-xs mobile:text-sm">{idx + 1}</td>
-                            <td className="p-1 mobile:p-2 border text-center text-xs mobile:text-sm truncate max-w-24 mobile:max-w-32">{item.productname}</td>
-                            <td className="p-1 mobile:p-2 border text-center">
-                              <input type="number" min="1" max={item.current_cases} value={item.cases}
-                                onChange={e => updateCases(idx, parseInt(e.target.value))}
-                                className="w-12 mobile:w-16 p-1 border rounded text-xs text-black"
-                                style={styles.input} />
-                            </td>
-                            <td className="p-1 mobile:p-2 border text-center text-xs mobile:text-sm">{item.per_case}</td>
-                            <td className="p-1 mobile:p-2 border text-center text-xs mobile:text-sm">{qty}</td>
-                            <td className="p-1 mobile:p-2 border text-center text-xs mobile:text-sm">₹{(item.rate_per_box || 0).toFixed(2)}</td>
-                            {/* <td className="p-1 mobile:p-2 border text-center">
-                              <input type="number" min="0" max="100" value={item.discount}
-                                onChange={e => updateDiscount(idx, parseFloat(e.target.value))}
-                                className="w-12 mobile:w-16 p-1 border rounded text-xs text-black"
-                                style={styles.input} />
-                            </td> */}
-                            <td className="p-1 mobile:p-2 border text-center text-xs mobile:text-sm">₹{finalAmt.toFixed(2)}</td>
-                            <td className="p-1 mobile:p-2 border text-center text-xs mobile:text-sm">{item.godown}</td>
-                            <td className="p-1 mobile:p-2 border text-center">
-                              <button onClick={() => removeFromCart(idx)} className="text-red-600">
-                                <FaTrash className="h-3 w-3 mobile:h-4 mobile:w-4" />
-                              </button>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-
-                <div className="mt-4 grid grid-cols-1 mobile:grid-cols-2 gap-3 mobile:gap-4 text-xs mobile:text-sm text-black dark:text-white">
-                  <div>
-                    <p className="font-bold">No. of Cases: {calc.totalCases}</p>
-                    <p>From: {customer.from}</p>
-                    <p>To: {customer.to}</p>
-                    <p>Through: {customer.through}</p>
-                  </div>
-                  <div className="text-right space-y-1">
-                    <p>GOODS VALUE <span className="float-right">₹{calc.subtotal}</span></p>
-                    <p>SPECIAL DISCOUNT <span className="float-right">-₹{calc.addlDiscountAmt}</span></p>
-                    <p>PACKING @ {packingPercent}% <span className="float-right">₹{calc.packingCharges}</span></p>
-                    <p>TAXABLE VALUE <span className="float-right">₹{calc.taxableUsed}</span></p>
-                    <p>ROUND OFF <span className="float-right">₹{calc.roundOff}</span></p>
-                    <p className="font-bold text-green-600">NET AMOUNT <span className="float-right">₹{calc.grandTotal}</span></p>
-                  </div>
-                </div>
-
-                <div className="mt-4 grid grid-cols-1 mobile:grid-cols-3 gap-3 text-xs mobile:text-sm">
-                  <div>
-                    <label className="block font-medium mb-1 text-black dark:text-white">Additional Discount (%)</label>
-                    <input type="number" value={additionalDiscount}
-                      onChange={e => setAdditionalDiscount(parseFloat(e.target.value) || 0)}
-                      className="w-full rounded px-2 py-1.5 border" style={styles.input} />
-                  </div>
-                  <div>
-                    <label className="block font-medium mb-1 text-black dark:text-white">Packing Charges (%)</label>
-                    <input type="number" step="0.1" value={packingPercent}
-                      onChange={e => setPackingPercent(parseFloat(e.target.value) || 0)}
-                      className="w-full rounded px-2 py-1.5 border" style={styles.input} />
-                  </div>
-                  <div>
-                    <label className="block font-medium mb-1 text-black dark:text-white">
-                      Additional Taxable Amount
-                    </label>
-                    <input type="number" placeholder="e.g. 1000 (added)"
-                      value={taxableValue} onChange={e => setTaxableValue(e.target.value)}
-                      className="w-full rounded px-2 py-1.5 border" style={styles.input} />
-                  </div>
-                </div>
               </div>
             )}
 

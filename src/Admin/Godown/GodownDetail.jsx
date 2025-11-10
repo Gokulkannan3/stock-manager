@@ -1,14 +1,18 @@
-import React, { useState, useEffect } from 'react';
+// src/pages/GodownDetail/GodownDetail.jsx
+import React, { useState, useEffect, useCallback } from 'react';
 import Modal from 'react-modal';
 import Sidebar from '../Sidebar/Sidebar';
 import Logout from '../Logout';
 import { API_BASE_URL } from '../../../Config';
-import { FaMinus, FaHistory, FaTimes, FaPlus, FaDownload, FaSpinner } from 'react-icons/fa';
+import {
+  FaMinus, FaHistory, FaTimes, FaPlus, FaDownload,
+  FaSpinner, FaSearch
+} from 'react-icons/fa';
 import { useParams } from 'react-router-dom';
 import * as XLSX from 'xlsx';
-import { debounce } from 'lodash';
 import DatePicker from 'react-datepicker';
 import "react-datepicker/dist/react-datepicker.css";
+import Select from 'react-select';
 
 Modal.setAppElement('#root');
 
@@ -24,7 +28,6 @@ export default function GodownDetail() {
   const [addModalIsOpen, setAddModalIsOpen] = useState(false);
   const [historyModalIsOpen, setHistoryModalIsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('current');
-  const [searchQuery, setSearchQuery] = useState('');
   const [selectedProductType, setSelectedProductType] = useState('all');
   const [productTypes, setProductTypes] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
@@ -38,7 +41,13 @@ export default function GodownDetail() {
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [showUniqueProductsModal, setShowUniqueProductsModal] = useState(false);
   const [showTotalCasesModal, setShowTotalCasesModal] = useState(false);
-  const [isLoading, setIsLoading] = useState(true); // NEW: Master loading state
+  const [isLoading, setIsLoading] = useState(true);
+  const [allProducts, setAllProducts] = useState([]);
+  const [selectedProduct, setSelectedProduct] = useState(null);
+  const [casesAdded, setCasesAdded] = useState('');
+  const [showAddProductModal, setShowAddProductModal] = useState(false);
+  const [addingProduct, setAddingProduct] = useState(false);
+  const [searchQuery, setSearchQuery] = useState(''); // Search state
 
   const styles = {
     input: {
@@ -59,13 +68,22 @@ export default function GodownDetail() {
     },
   };
 
-  const debouncedSetCasesTaken = debounce(v => setCasesTaken(v), 300);
-  const debouncedSetCasesToAdd = debounce(v => setCasesToAdd(v), 300);
-
   const capitalize = str =>
     str ? str.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') : '';
 
-  // FETCH GODOWN + PRELOAD ALL HISTORY
+  // FETCH ALL PRODUCTS
+  const fetchAllProducts = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/products`);
+      if (!res.ok) throw new Error('Failed');
+      const data = await res.json();
+      setAllProducts(data);
+    } catch (err) {
+      console.error('Failed to load products');
+    }
+  }, []);
+
+  // FETCH GODOWN + HISTORY
   const fetchGodown = async () => {
     setIsLoading(true);
     setIsLoadingHistory(true);
@@ -82,7 +100,7 @@ export default function GodownDetail() {
         setProductTypes(uniqueTypes);
       }
 
-      // Pre-load history for all stocks
+      // Pre-fetch history for each stock
       for (const stock of data) {
         if (!historyCache[stock.id]) {
           try {
@@ -102,6 +120,49 @@ export default function GodownDetail() {
     }
   };
 
+  // Initial load
+  useEffect(() => {
+    fetchGodown();
+    fetchAllProducts();
+  }, [godownId, fetchAllProducts]);
+
+  // ADD PRODUCT TO GODOWN
+  const handleAddProductToGodown = async () => {
+    if (!selectedProduct || !casesAdded || parseInt(casesAdded) <= 0) {
+      setError('Select product and valid cases');
+      return;
+    }
+    setAddingProduct(true);
+    setError('');
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/godowns/${godownId}/stock`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          godown_id: godownId,
+          product_type: selectedProduct.product_type,
+          productname: selectedProduct.productname,
+          brand: selectedProduct.brand.toLowerCase().replace(/\s+/g, '_'),
+          cases_added: parseInt(casesAdded),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed to add');
+
+      setShowAddProductModal(false);
+      setSelectedProduct(null);
+      setCasesAdded('');
+      setError('');
+      await fetchGodown();
+      await fetchAllProducts();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setAddingProduct(false);
+    }
+  };
+
+  // TAKE STOCK
   const handleTakeStock = async () => {
     if (!selectedStock?.id || !casesTaken || parseInt(casesTaken) <= 0) return;
     setIsTakingStock(true);
@@ -115,7 +176,7 @@ export default function GodownDetail() {
       setTakeModalIsOpen(false);
       setCasesTaken('');
       setSelectedStock(null);
-      fetchGodown();
+      await fetchGodown();
     } catch (err) {
       setError(err.message);
     } finally {
@@ -123,6 +184,7 @@ export default function GodownDetail() {
     }
   };
 
+  // ADD STOCK
   const handleAddStock = async () => {
     if (!selectedStock?.id || !casesToAdd || parseInt(casesToAdd) <= 0) return;
     try {
@@ -135,12 +197,13 @@ export default function GodownDetail() {
       setAddModalIsOpen(false);
       setCasesToAdd('');
       setSelectedStock(null);
-      fetchGodown();
+      await fetchGodown();
     } catch (err) {
       setError(err.message);
     }
   };
 
+  // STOCK HISTORY
   const fetchStockHistory = async stockId => {
     if (historyCache[stockId]) {
       setStockHistory(historyCache[stockId]);
@@ -159,6 +222,7 @@ export default function GodownDetail() {
     }
   };
 
+  // DOWNLOAD
   const openDownloadModal = () => setShowDownloadModal(true);
 
   const confirmDownload = () => {
@@ -166,53 +230,85 @@ export default function GodownDetail() {
       alert('No stock data to export');
       return;
     }
+
     const allHistory = Object.values(historyCache).flat();
     let filtered = [];
+
+    // Helper: Convert any date to IST YYYY-MM-DD
+    const toISTDate = (dateStr) => {
+      const date = new Date(dateStr);
+      return date.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }); // "2025-11-10"
+    };
+
     if (downloadMode === 'all') {
       filtered = allHistory;
     } else if (downloadMode === 'date' && selectedDate) {
-      const d = selectedDate.toISOString().split('T')[0];
-      filtered = allHistory.filter(h => h.date.startsWith(d));
+      const selectedIST = toISTDate(selectedDate); // e.g. "2025-11-10"
+      filtered = allHistory.filter(h => toISTDate(h.date) === selectedIST);
     } else if (downloadMode === 'month' && selectedMonth) {
       const year = selectedMonth.getFullYear();
       const month = String(selectedMonth.getMonth() + 1).padStart(2, '0');
       const prefix = `${year}-${month}`;
-      filtered = allHistory.filter(h => h.date.startsWith(prefix));
+      filtered = allHistory.filter(h => toISTDate(h.date).startsWith(prefix));
     }
+
     if (filtered.length === 0 && downloadMode !== 'all') {
       alert('No history found for the selected filter.');
       return;
     }
+
     const wb = XLSX.utils.book_new();
+
+    // ── CURRENT STOCK SHEET ──
     const currentStockData = godown.stocks
       .filter(s => s.current_cases > 0)
-      .map(s => ({
-        'Product Type': capitalize(s.product_type),
-        'Product Name': s.productname,
-        'Brand': capitalize(s.brand || ''),
-        'Agent': s.agent_name || '-',
-        'Current Cases': s.current_cases,
-        'Per Case': s.per_case,
-        'Total Items': s.current_cases * s.per_case,
-      }));
+      .map(s => {
+        const lastTaken = allHistory
+          .filter(h => h.stock_id === s.id && h.action === 'taken')
+          .sort((a, b) => new Date(b.date) - new Date(a.date))[0];
+
+        const lastTaker = lastTaken
+          ? (lastTaken.customer_name && lastTaken.customer_name !== '-' ? lastTaken.customer_name : lastTaken.agent_name || '-')
+          : (s.agent_name || '-');
+
+        return {
+          'Product Type': capitalize(s.product_type),
+          'Product Name': s.productname,
+          'Brand': capitalize(s.brand || ''),
+          'Name': lastTaker,
+          'Current Cases': s.current_cases,
+          'Per Case': s.per_case,
+          'Total Items': s.current_cases * s.per_case,
+        };
+      });
+
     if (currentStockData.length > 0) {
       const wsCurrent = XLSX.utils.json_to_sheet(currentStockData);
       XLSX.utils.book_append_sheet(wb, wsCurrent, 'Current Stock');
     }
+
+    // ── HISTORY SHEETS ──
     const historyByType = {};
     filtered.forEach(h => {
       const type = capitalize(h.product_type);
       if (!historyByType[type]) historyByType[type] = [];
       historyByType[type].push({
-        'Date': new Date(h.date).toLocaleString(),
+        'Date': new Date(h.date).toLocaleString('en-IN', {
+          timeZone: 'Asia/Kolkata',
+          day: '2-digit', month: 'short', year: 'numeric',
+          hour: '2-digit', minute: '2-digit', hour12: true
+        }),
         'Product': h.productname,
         'Brand': capitalize(h.brand || ''),
-        'Action': capitalize(h.action),
-        'Cases': h.action === 'added' ? h.cases : -h.cases,
+        'Action': h.action === 'added' ? 'IN' : 'OUT',
+        'Cases': h.action === 'added' ? `+${h.cases}` : `-${h.cases}`,
         'Items': h.per_case_total,
-        'Agent': h.action === 'added' ? (h.agent_name || '-') : '-',
+        'Name': h.action === 'added'
+          ? (h.customer_name && h.customer_name !== '-' ? h.customer_name : h.agent_name || '-')
+          : (h.customer_name && h.customer_name !== '-' ? h.customer_name : '-'),
       });
     });
+
     for (const type in historyByType) {
       if (historyByType[type].length > 0) {
         const ws = XLSX.utils.json_to_sheet(historyByType[type]);
@@ -220,24 +316,24 @@ export default function GodownDetail() {
         XLSX.utils.book_append_sheet(wb, ws, safeName);
       }
     }
+
     if (Object.keys(wb.Sheets).length === 0) {
       alert('No data to export.');
       return;
     }
+
     const suffix =
       downloadMode === 'all' ? 'all' :
-      downloadMode === 'date' ? selectedDate.toISOString().split('T')[0] :
+      downloadMode === 'date' ? toISTDate(selectedDate) :
       `${selectedMonth.getFullYear()}-${String(selectedMonth.getMonth() + 1).padStart(2, '0')}`;
+
     XLSX.writeFile(wb, `${godown.name}_stock_${suffix}.xlsx`);
+
     setShowDownloadModal(false);
     setDownloadMode('all');
     setSelectedDate(null);
     setSelectedMonth(null);
   };
-
-  useEffect(() => {
-    fetchGodown();
-  }, [godownId]);
 
   const openTakeModal = stock => {
     setSelectedStock(stock);
@@ -251,11 +347,12 @@ export default function GodownDetail() {
     setAddModalIsOpen(true);
   };
 
+  // FILTERED STOCKS
   const currentStocks = godown ? godown.stocks.filter(s => s.current_cases > 0) : [];
   const previousStocks = godown ? godown.stocks.filter(s => s.current_cases === 0) : [];
   const stocksToDisplay = activeTab === 'current' ? currentStocks : previousStocks;
   const filteredStocks = stocksToDisplay.filter(stock => {
-    const matchesSearch = stock.productname.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesSearch = !searchQuery || stock.productname.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesType = selectedProductType === 'all' || stock.product_type === selectedProductType;
     return matchesSearch && matchesType;
   });
@@ -288,14 +385,33 @@ export default function GodownDetail() {
         .sort((a, b) => b.casecount - a.casecount)
     : [];
 
-  // FULL-SCREEN LOADER
+  // PRODUCT OPTIONS FOR react-select
+  const productOptions = allProducts
+    .filter(p => !godown?.stocks?.some(s => s.productname === p.productname && s.brand === p.brand))
+    .map(p => ({
+      value: p.id,
+      label: `${p.productname} (${capitalize(p.brand || '')})`,
+      productname: p.productname,
+      brand: p.brand,
+      product_type: p.product_type,
+    }));
+
+  // SEARCH OPTIONS
+  const searchOptions = godown?.stocks
+    ? [...new Map(godown.stocks.map(s => [s.productname, s])).values()]
+        .map(s => ({
+          value: s.productname,
+          label: `${s.productname} (${capitalize(s.brand || '')})`
+        }))
+        .sort((a, b) => a.label.localeCompare(b.label))
+    : [];
+
+  // LOADING SCREEN
   if (isLoading) {
     return (
       <div className="flex min-h-screen bg-gray-100 dark:bg-gray-900">
         <Sidebar />
         <Logout />
-
-        {/* Main content area with overlay spinner */}
         <div className="flex-1 relative">
           <div className="absolute inset-0 bg-white dark:bg-gray-900 bg-opacity-90 flex items-center justify-center z-40">
             <div className="flex flex-col items-center">
@@ -305,8 +421,6 @@ export default function GodownDetail() {
               </p>
             </div>
           </div>
-
-          {/* Invisible placeholder to maintain layout */}
           <div className="p-6 pt-16 min-h-screen opacity-0">&nbsp;</div>
         </div>
       </div>
@@ -323,15 +437,25 @@ export default function GodownDetail() {
             <h2 className="text-2xl mobile:text-xl text-center font-bold text-gray-900 dark:text-gray-100">
               View Stocks for {godown ? capitalize(godown.name) : 'Godown'}
             </h2>
-            <button
-              onClick={openDownloadModal}
-              disabled={isLoadingHistory}
-              className="flex items-center rounded-md px-4 py-2 mobile:px-2 mobile:py-1 text-sm mobile:text-xs font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-50"
-              style={{ background: styles.button.background, border: styles.button.border, boxShadow: styles.button.boxShadow }}
-            >
-              <FaDownload className="mr-2 h-4 w-4 mobile:h-3 mobile:w-3" />
-              {isLoadingHistory ? 'Loading...' : 'Download History'}
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowAddProductModal(true)}
+                className="flex items-center rounded-md px-4 py-2 mobile:px-2 mobile:py-1 text-sm mobile:text-xs font-semibold text-white shadow-sm hover:bg-green-700"
+                style={{ background: 'linear-gradient(135deg, #16a34a, #22c55e)', border: styles.button.border }}
+              >
+                <FaPlus className="mr-2 h-4 w-4" />
+                Add Product
+              </button>
+              <button
+                onClick={openDownloadModal}
+                disabled={isLoadingHistory}
+                className="flex items-center rounded-md px-4 py-2 mobile:px-2 mobile:py-1 text-sm mobile:text-xs font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-50"
+                style={{ background: styles.button.background, border: styles.button.border, boxShadow: styles.button.boxShadow }}
+              >
+                <FaDownload className="mr-2 h-4 w-4 mobile:h-3 mobile:w-3" />
+                {isLoadingHistory ? 'Loading...' : 'Download History'}
+              </button>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
@@ -363,18 +487,38 @@ export default function GodownDetail() {
 
           {error && <div className="mb-4 text-red-600 dark:text-red-400 text-center">{error}</div>}
 
-          <div className="mb-6 mobile:mb-4 flex mobile:flex-col mobile:gap-4 justify-between items-center">
-            <select
-              value={selectedProductType}
-              onChange={e => setSelectedProductType(e.target.value)}
-              className="w-64 mobile:w-full rounded-md px-3 py-1.5 mobile:px-2 mobile:py-1 text-base mobile:text-sm text-gray-900 dark:text-gray-900 border border-gray-300 dark:border-gray-600 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600"
-              style={{ background: styles.input.background, border: styles.input.border, backdropFilter: styles.input.backdropFilter }}
-            >
-              <option value="all">All Product Types</option>
-              {productTypes.map(t => (
-                <option key={t} value={t}>{capitalize(t)}</option>
-              ))}
-            </select>
+          {/* SEARCH BAR */}
+          <div className="mb-6 mobile:mb-4">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Search by Product Name
+            </label>
+            <Select
+              options={[{ value: '', label: 'All Products' }, ...searchOptions]}
+              onChange={option => setSearchQuery(option?.value || '')}
+              placeholder="Type to search..."
+              isClearable
+              isSearchable
+              className="react-select-container"
+              classNamePrefix="react-select"
+              styles={{
+                control: (base) => ({
+                  ...base,
+                  background: styles.input.background,
+                  border: styles.input.border,
+                  backdropFilter: styles.input.backdropFilter,
+                  boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+                  borderRadius: '0.375rem',
+                  '&:hover': { borderColor: 'rgba(2,132,199,0.5)' },
+                }),
+                menu: (base) => ({
+                  ...base,
+                  background: 'rgba(255,255,255,0.95)',
+                  backdropFilter: 'blur(10px)',
+                  border: '1px solid rgba(2,132,199,0.2)',
+                  borderRadius: '0.375rem',
+                }),
+              }}
+            />
           </div>
 
           <div className="mb-6 mobile:mb-4">
@@ -398,35 +542,42 @@ export default function GodownDetail() {
             {currentCards.map(s => (
               <div key={s.id} className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mobile:p-4 border border-gray-200 dark:border-gray-700">
                 <div className="flex flex-col">
-                  <div className="mb-3 mobile:mb-2">
-                    <h3 className="text-md mobile:text-md font-semibold text-gray-900 dark:text-gray-100 truncate">{s.productname}</h3>
+                  <div className="mb-3 mobile:mb-2 relative">
+                    <h3 className="text-md mobile:text-md font-semibold text-gray-900 dark:text-gray-100 truncate pr-10">
+                      {s.productname}
+                      <span className="text-sky-500"> ({capitalize(s.brand || '')})</span>
+                    </h3>
+
+                    <div className="absolute top-0 right-0 flex items-center justify-center w-8 h-8 rounded-full bg-green-500 text-black text-md font-bold shadow-md">
+                      {s.current_cases}
+                    </div>
+
                     <p className="text-sm mobile:text-sm text-gray-600 dark:text-gray-400">{capitalize(s.product_type)}</p>
+
                     <div className="flex gap-5">
-                      <p className="text-sm mobile:text-sm text-sky-300">B - {capitalize(s.brand)}</p>
                       <p className="text-sm mobile:text-sm text-sky-300">A - {s.agent_name || '-'}</p>
                     </div>
                   </div>
                   <div className="mb-4 mobile:mb-2 grid grid-cols-2 gap-2 text-xs mobile:text-[10px]">
-                    <div><span className="font-medium text-sm text-gray-700 dark:text-gray-300">Current Cases: {s.current_cases}</span></div>
                     <div><span className="font-medium text-sm text-gray-700 dark:text-gray-300">Per Case: {s.per_case}</span></div>
                   </div>
                   <div className="flex justify-center gap-2 mobile:gap-1">
+                    <button
+                      onClick={() => openAddModal(s)}
+                      className="flex w-20 justify-center items-center rounded-md px-2 py-1 mobile:px-1 mobile:py-0.5 text-xs mobile:text-lg font-semibold text-white shadow-sm hover:bg-indigo-700"
+                      style={{ background: styles.button.background, border: styles.button.border, boxShadow: styles.button.boxShadow }}
+                    >
+                      In
+                    </button>
                     {activeTab === 'current' && (
                       <button
                         onClick={() => openTakeModal(s)}
                         className="flex w-20 justify-center items-center rounded-md px-2 py-1 mobile:px-1 mobile:py-0.5 text-xs mobile:text-lg font-semibold text-white shadow-sm hover:bg-indigo-700"
                         style={{ background: styles.button.background, border: styles.button.border, boxShadow: styles.button.boxShadow }}
                       >
-                        Take
+                        Out
                       </button>
                     )}
-                    <button
-                      onClick={() => openAddModal(s)}
-                      className="flex w-20 justify-center items-center rounded-md px-2 py-1 mobile:px-1 mobile:py-0.5 text-xs mobile:text-lg font-semibold text-white shadow-sm hover:bg-indigo-700"
-                      style={{ background: styles.button.background, border: styles.button.border, boxShadow: styles.button.boxShadow }}
-                    >
-                      Add
-                    </button>
                     <button
                       onClick={() => fetchStockHistory(s.id)}
                       className="flex w-20 justify-center items-center rounded-md px-2 py-1 mobile:px-1 mobile:py-0.5 text-xs mobile:text-lg font-semibold text-white shadow-sm hover:bg-indigo-700"
@@ -472,77 +623,197 @@ export default function GodownDetail() {
         </div>
       </div>
 
-      {/* === MODALS (unchanged) === */}
-      {/* Take Modal */}
+      {/* ADD PRODUCT MODAL */}
+      <Modal
+        isOpen={showAddProductModal}
+        onRequestClose={() => {
+          setShowAddProductModal(false);
+          setSelectedProduct(null);
+          setCasesAdded('');
+          setError('');
+        }}
+        className="fixed inset-0 flex items-center justify-center p-4"
+        overlayClassName="fixed inset-0 bg-black/50"
+      >
+        <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-lg font-bold text-black dark:text-white">Add Product to Godown</h3>
+            <button onClick={() => setShowAddProductModal(false)}><FaTimes /></button>
+          </div>
+
+          <div className="mb-4">
+            <label className="block text-sm font-medium mb-1 text-black dark:text-white">Product</label>
+            <Select
+              value={selectedProduct}
+              onChange={setSelectedProduct}
+              options={productOptions}
+              placeholder="Search product..."
+              isSearchable
+              isClearable
+              className="react-select-container"
+              classNamePrefix="react-select"
+              noOptionsMessage={() => 'No products available'}
+            />
+          </div>
+
+          <div className="mb-4">
+            <label className="block text-sm font-medium mb-1 text-black dark:text-white">Cases</label>
+            <input
+              type="number"
+              value={casesAdded}
+              onChange={e => setCasesAdded(e.target.value)}
+              placeholder="10"
+              min="1"
+              className="w-full p-2 border rounded text-black dark:text-white dark:bg-gray-700"
+            />
+          </div>
+
+          {error && <p className="text-red-600 text-sm mb-2">{error}</p>}
+
+          <div className="flex gap-2">
+            <button
+              onClick={() => setShowAddProductModal(false)}
+              className="flex-1 py-2 border rounded text-black dark:text-white"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleAddProductToGodown}
+              disabled={addingProduct || !selectedProduct || !casesAdded}
+              className="flex-1 py-2 bg-green-600 text-white rounded disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              {addingProduct ? <>Adding... <FaSpinner className="animate-spin" /></> : 'Add'}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* TAKE MODAL */}
       <Modal isOpen={takeModalIsOpen} onRequestClose={() => { setTakeModalIsOpen(false); setCasesTaken(''); setSelectedStock(null); }} className="fixed inset-0 flex items-center justify-center p-4" overlayClassName="fixed inset-0 bg-black/50">
         <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-lg font-bold text-black dark:text-white">Take Cases</h2>
             <button onClick={() => setTakeModalIsOpen(false)}><FaTimes /></button>
           </div>
-          <input type="number" value={casesTaken} onChange={e => debouncedSetCasesTaken(e.target.value)} className="w-full p-2 border rounded mb-4 text-black dark:text-white" placeholder="Cases to take" min="1" disabled={isTakingStock} />
+          <input type="number" value={casesTaken} onChange={e => setCasesTaken(e.target.value)} className="w-full p-2 border rounded mb-4 text-black dark:text-white" placeholder="Cases to take" min="1" disabled={isTakingStock} />
           <button onClick={handleTakeStock} disabled={isTakingStock} className="w-full py-2 bg-indigo-600 text-white rounded disabled:opacity-50">
             {isTakingStock ? 'Submitting...' : 'Take'}
           </button>
         </div>
       </Modal>
 
-      {/* Add Modal */}
+      {/* ADD MODAL */}
       <Modal isOpen={addModalIsOpen} onRequestClose={() => { setAddModalIsOpen(false); setCasesToAdd(''); setSelectedStock(null); }} className="fixed inset-0 flex items-center justify-center p-4" overlayClassName="fixed inset-0 bg-black/50">
         <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-lg font-bold text-black dark:text-white">Add Cases</h2>
             <button onClick={() => setAddModalIsOpen(false)}><FaTimes /></button>
           </div>
-          <input type="number" value={casesToAdd} onChange={e => debouncedSetCasesToAdd(e.target.value)} className="w-full p-2 border rounded mb-4 text-black dark:text-white" placeholder="Cases to add" min="1" />
+          <input type="number" value={casesToAdd} onChange={e => setCasesToAdd(e.target.value)} className="w-full p-2 border rounded mb-4 text-black dark:text-white" placeholder="Cases to add" min="1" />
           <button onClick={handleAddStock} className="w-full py-2 bg-indigo-600 text-white rounded">Add</button>
         </div>
       </Modal>
 
-      {/* History Modal */}
-      <Modal isOpen={historyModalIsOpen} onRequestClose={() => { setHistoryModalIsOpen(false); setStockHistory([]); }} className="fixed inset-0 flex items-center justify-center p-4" overlayClassName="fixed inset-0 bg-black/50">
+      {/* HISTORY MODAL – SHOWS CUSTOMER NAME (IN) / AGENT NAME (OUT) */}
+      <Modal
+        isOpen={historyModalIsOpen}
+        onRequestClose={() => {
+          setHistoryModalIsOpen(false);
+          setStockHistory([]);
+        }}
+        className="fixed inset-0 flex items-center justify-center p-4"
+        overlayClassName="fixed inset-0 bg-black/50"
+      >
         <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-4xl w-full max-h-[80vh] overflow-y-auto">
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-lg font-bold text-black dark:text-white">Stock History</h2>
-            <button onClick={() => setHistoryModalIsOpen(false)}><FaTimes /></button>
+            <h2 className="text-lg font-bold text-black dark:text-white">
+              Stock History – {selectedStock?.productname} ({capitalize(selectedStock?.brand || '')})
+            </h2>
+            <button onClick={() => setHistoryModalIsOpen(false)}>
+              <FaTimes />
+            </button>
           </div>
-          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-            <thead className="bg-gray-50 dark:bg-gray-700">
-              <tr>
-                <th className="px-4 py-2 text-left text-xs font-medium text-black dark:text-white uppercase">No</th>
-                <th className="px-4 py-2 text-left text-xs font-medium text-black dark:text-white uppercase">Date</th>
-                <th className="px-4 py-2 text-left text-xs font-medium text-black dark:text-white uppercase">Product</th>
-                <th className="px-4 py-2 text-left text-xs font-medium text-black dark:text-white uppercase">Brand</th>
-                <th className="px-4 py-2 text-left text-xs font-medium text-black dark:text-white uppercase">Action</th>
-                <th className="px-4 py-2 text-left text-xs font-medium text-black dark:text-white uppercase">Cases</th>
-                <th className="px-4 py-2 text-left text-xs font-medium text-black dark:text-white uppercase">Total Qty</th>
-                <th className="px-4 py-2 text-left text-xs font-medium text-black dark:text-white uppercase">Agent</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-              {stockHistory.map((h, i) => (
-                <tr key={i}>
-                  <td className="px-4 py-2 text-sm text-black dark:text-white">{i + 1}</td>
-                  <td className="px-4 py-2 text-sm text-black dark:text-white">{new Date(h.date).toLocaleString()}</td>
-                  <td className="px-4 py-2 text-sm text-black dark:text-white">{h.productname}</td>
-                  <td className="px-4 py-2 text-sm text-black dark:text-white">{capitalize(h.brand)}</td>
-                  <td className={`px-4 py-2 text-sm font-bold ${h.action === 'taken' ? 'text-red-600' : 'text-green-600'}`}>
-                    {capitalize(h.action)}
-                  </td>
-                  <td className="px-4 py-2 text-sm text-black dark:text-white">{h.cases}</td>
-                  <td className="px-4 py-2 text-sm text-black dark:text-white">{h.per_case_total}</td>
-                  <td className="px-4 py-2 text-sm text-sky-300">
-                    {h.action === 'added' ? (h.agent_name || '-') : '-'}
-                  </td>
+
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+              <thead className="bg-gray-50 dark:bg-gray-700">
+                <tr>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-black dark:text-white uppercase tracking-wider">No</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-black dark:text-white uppercase tracking-wider">Date & Time</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-black dark:text-white uppercase tracking-wider">Action</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-black dark:text-white uppercase tracking-wider">Cases</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-black dark:text-white uppercase tracking-wider">Total Qty</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-black dark:text-white uppercase tracking-wider">Name</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-          {stockHistory.length === 0 && <p className="text-center mt-4 text-gray-500">No history</p>}
+              </thead>
+              <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                {stockHistory.length > 0 ? (
+                  stockHistory
+                    .sort((a, b) => new Date(b.date) - new Date(a.date))
+                    .map((h, i) => (
+                      <tr
+                        key={i}
+                        className={
+                          h.action === 'added'
+                            ? 'bg-green-50 dark:bg-green-900/30 hover:bg-green-100 dark:hover:bg-green-800/40'
+                            : 'bg-red-50 dark:bg-red-900/30 hover:bg-red-100 dark:hover:bg-red-800/40'
+                        }
+                      >
+                        <td className="px-4 py-2 text-sm text-black dark:text-white">{i + 1}</td>
+                        <td className="px-4 py-2 text-sm text-black dark:text-white">
+                          {new Date(h.date).toLocaleString('en-IN', {
+                            day: '2-digit',
+                            month: 'short',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            hour12: true,
+                          })}
+                        </td>
+                        <td className={`px-4 py-2 text-sm font-bold ${
+                          h.action === 'added' ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'
+                        }`}>
+                          {h.action === 'added' ? 'IN' : 'OUT'}
+                        </td>
+                        <td className="px-4 py-2 text-sm text-black dark:text-white">
+                          {h.action === 'added' ? `+${h.cases}` : `-${h.cases}`}
+                        </td>
+                        <td className="px-4 py-2 text-sm text-black dark:text-white">{h.per_case_total}</td>
+                        <td className="px-4 py-2 text-sm text-sky-500">
+                          {h.action === 'added' 
+                            ? (h.customer_name && h.customer_name !== '-' ? h.customer_name : h.agent_name)
+                            : (h.customer_name && h.customer_name !== '-' ? h.customer_name : '-')
+                          }
+                        </td>
+                      </tr>
+                    ))
+                ) : (
+                  <tr>
+                    <td colSpan="6" className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                      No history available
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {stockHistory.length > 0 && (
+            <div className="mt-6 flex justify-center gap-6 text-sm">
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 rounded bg-green-100 dark:bg-green-900"></div>
+                <span className="text-gray-700 dark:text-gray-300">IN (Added)</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 rounded bg-red-100 dark:bg-red-900"></div>
+                <span className="text-gray-700 dark:text-gray-300">OUT (Taken)</span>
+              </div>
+            </div>
+          )}
         </div>
       </Modal>
 
-      {/* Download Modal */}
+      {/* DOWNLOAD MODAL */}
       <Modal isOpen={showDownloadModal} onRequestClose={() => setShowDownloadModal(false)} className="fixed inset-0 flex items-center justify-center p-4" overlayClassName="fixed inset-0 bg-black/50">
         <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full">
           <h3 className="text-lg font-bold mb-4 text-black dark:text-white">Download Stock History</h3>
@@ -575,7 +846,7 @@ export default function GodownDetail() {
         </div>
       </Modal>
 
-      {/* Unique Products Modal */}
+      {/* UNIQUE PRODUCTS MODAL */}
       <Modal isOpen={showUniqueProductsModal} onRequestClose={() => setShowUniqueProductsModal(false)} className="fixed inset-0 flex items-center justify-center p-4" overlayClassName="fixed inset-0 bg-black/50">
         <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto">
           <div className="flex justify-between items-center mb-4">
@@ -603,7 +874,7 @@ export default function GodownDetail() {
         </div>
       </Modal>
 
-      {/* Total Cases Modal */}
+      {/* TOTAL CASES MODAL */}
       <Modal isOpen={showTotalCasesModal} onRequestClose={() => setShowTotalCasesModal(false)} className="fixed inset-0 flex items-center justify-center p-4" overlayClassName="fixed inset-0 bg-black/50">
         <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto">
           <div className="flex justify-between items-center mb-4">

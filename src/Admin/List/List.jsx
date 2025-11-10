@@ -113,7 +113,7 @@ export default function List() {
 
   const handleSubmit = async (e, isEdit) => {
     e.preventDefault();
-    if (!formData.productname || !formData.price || !formData.case_count || !formData.per_case || !formData.brand || (!isEdit && !formData.product_type)) {
+    if (!formData.productname || !formData.price || !formData.per_case || !formData.brand || (!isEdit && !formData.product_type)) {
       setError('Please fill in all required fields');
       return;
     }
@@ -123,7 +123,6 @@ export default function List() {
     const payload = {
       productname: formData.productname,
       price: parseFloat(formData.price),
-      case_count: parseInt(formData.case_count, 10),
       per_case: parseInt(formData.per_case, 10),
       brand: formData.brand,
       ...(isEdit ? {} : { product_type: formData.product_type })
@@ -158,7 +157,7 @@ export default function List() {
     setAddModalIsOpen(false);
     setSelectedProduct(null);
     setError('');
-    setFormData({ productname: '', price: '', case_count: '', per_case: '', brand: '', product_type: '' });
+    setFormData({ productname: '', price: '', per_case: '', brand: '', product_type: '' });
   };
 
   const capitalize = str => {
@@ -178,25 +177,25 @@ export default function List() {
               name="product_type"
               value={formData.product_type}
               onChange={e => setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }))}
-              className="mt-1 mobile:mt-0.5 block w-full rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 shadow-sm focus:border-indigo-600 dark:focus:border-blue-500 focus:ring-indigo-600 dark:focus:ring-blue-500 sm:text-sm mobile:text-xs"
+              className="mt-1 mobile:mt-0.5 block w-full rounded-md bg-white dark:bg-gray-900 text-black border-gray-300 dark:border-gray-600 shadow-sm focus:border-indigo-600 dark:focus:border-blue-500 focus:ring-indigo-600 dark:focus:ring-blue-500 sm:text-sm mobile:text-xs"
               style={{ background: styles.input.background, border: styles.input.border, backdropFilter: styles.input.backdropFilter }}
               required
             />
           </div>
         )}
-        {['productname', 'price', 'case_count', 'per_case'].map(field => (
+        {['productname', 'price', 'per_case'].map(field => (
           <div key={field}>
             <label className="block text-sm mobile:text-xs font-medium text-gray-700 dark:text-gray-300">{capitalize(field.replace('_', ' '))}</label>
             <input
-              type={field === 'price' ? 'number' : field === 'case_count' || field === 'per_case' ? 'number' : 'text'}
+              type={field === 'price' ? 'number' :  field === 'per_case' ? 'number' : 'text'}
               name={field}
               value={formData[field]}
               onChange={e => setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }))}
-              className="mt-1 mobile:mt-0.5 block w-full rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 shadow-sm focus:border-indigo-600 dark:focus:border-blue-500 focus:ring-indigo-600 dark:focus:ring-blue-500 sm:text-sm mobile:text-xs"
+              className="mt-1 mobile:mt-0.5 block w-full rounded-md bg-white dark:bg-gray-900 text-black border-gray-300 dark:border-gray-600 shadow-sm focus:border-indigo-600 dark:focus:border-blue-500 focus:ring-indigo-600 dark:focus:ring-blue-500 sm:text-sm mobile:text-xs"
               style={{ background: styles.input.background, border: styles.input.border, backdropFilter: styles.input.backdropFilter }}
               required
               step={field === 'price' ? '0.01' : '1'}
-              min={field === 'case_count' || field === 'per_case' ? '0' : field === 'price' ? '0' : undefined}
+              min={ field === 'per_case' ? '0' : field === 'price' ? '0' : undefined}
             />
           </div>
         ))}
@@ -206,7 +205,7 @@ export default function List() {
             name="brand"
             value={formData.brand}
             onChange={e => setFormData(prev => ({ ...prev, brand: e.target.value }))}
-            className="mt-1 mobile:mt-0.5 block w-full rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 shadow-sm focus:border-indigo-600 dark:focus:border-blue-500 focus:ring-indigo-600 dark:focus:ring-blue-500 sm:text-sm mobile:text-xs"
+            className="mt-1 mobile:mt-0.5 block w-full rounded-md bg-white dark:bg-gray-900 text-black border-gray-300 dark:border-gray-600 shadow-sm focus:border-indigo-600 dark:focus:border-blue-500 focus:ring-indigo-600 dark:focus:ring-blue-500 sm:text-sm mobile:text-xs"
             style={{ background: styles.input.background, border: styles.input.border, backdropFilter: styles.input.backdropFilter }}
             required
           >
@@ -300,19 +299,16 @@ export default function List() {
                   <div key={productKey} className="bg-white dark:bg-gray-900 rounded-lg shadow-md p-6 mobile:p-4 border border-gray-200 dark:border-gray-700">
                     <div className="flex flex-col">
                       <div className="mb-3 mobile:mb-2">
-                        <h3 className="text-md mobile:text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">{product.productname}</h3>
-                        <p className="text-sm mobile:text-xs text-gray-600 dark:text-gray-400">{capitalize(product.product_type)}</p>
-                        <p className="text-sm mobile:text-xs text-sky-300">B - {capitalize(product.brand)}</p>
+                        <h3 className="hundred:text-xl mobile:text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">{product.productname}</h3>
+                        <p className="hundred:text-lg mobile:text-xs text-gray-600 dark:text-gray-400">{capitalize(product.product_type)}</p>
+                        <p className="hundred:text-lg mobile:text-xs text-sky-300">B - {capitalize(product.brand)}</p>
                       </div>
-                      <div className="mb-4 mobile:mb-2 grid grid-cols-2 mobile:grid-cols-1 gap-2 mobile:gap-1 text-xs mobile:text-[10px]">
+                      <div className="mb-4 mobile:mb-2 grid grid-cols-2 mobile:grid-cols-1 gap-2 mobile:gap-1">
                         <div>
-                          <span className="font-medium text-gray-700 dark:text-gray-300">Price: ₹{parseFloat(product.price).toFixed(2)}</span>
+                          <span className="font-medium text-gray-700 dark:text-gray-300 hundred:text-md">Price: ₹{parseFloat(product.price).toFixed(2)}</span>
                         </div>
                         <div>
-                          <span className="font-medium text-gray-700 dark:text-gray-300">Case Count: {product.case_count}</span>
-                        </div>
-                        <div>
-                          <span className="font-medium text-gray-700 dark:text-gray-300">Per Case: {product.per_case}</span>
+                          <span className="font-medium text-gray-700 dark:text-gray-300">Quantity / case: {product.per_case}</span>
                         </div>
                       </div>
                       <div className="flex mobile:gap-1 justify-center gap-2">
@@ -391,8 +387,8 @@ export default function List() {
                   <div className="grid grid-cols-2 mobile:grid-cols-1 gap-4 mobile:gap-2">
                     {['product_type', 'productname', 'price', 'case_count', 'per_case', 'brand'].map(field => (
                       <div key={field}>
-                        <span className="font-medium text-gray-700 dark:text-gray-300 text-xs sm:text-sm mobile:text-[10px]">{capitalize(field.replace('_', ' '))}:</span>
-                        <p className="text-sm mobile:text-xs text-gray-900 dark:text-gray-100">
+                          <span className="font-medium text-black text-xs sm:text-sm mobile:text-[10px]">{capitalize(field.replace('_', ' '))}:</span>
+                          <p className="text-sm mobile:text-xs text-black dark:text-gray-100">
                           {field === 'price' ? `₹${parseFloat(selectedProduct[field]).toFixed(2)}` : capitalize(selectedProduct[field])}
                         </p>
                       </div>

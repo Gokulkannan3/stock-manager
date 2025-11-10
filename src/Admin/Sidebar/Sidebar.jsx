@@ -41,17 +41,17 @@ export default function Sidebar() {
       allowed: can.godown,
       icon: <FaWarehouse className="mr-2" />,
       subItems: [
-        { name: 'Add Godown', path: '/godown', icon: <FaPlus className="mr-2" /> },
+        { name: 'Add Stock', path: '/godown', icon: <FaPlus className="mr-2" /> },
         { name: 'View Stocks', path: '/viewstock', icon: <FaList className="mr-2" /> },
       ],
     },
     {
-      name: 'Booking',
+      name: 'Billing',
       allowed: can.booking,
       icon: <FaMoneyBillAlt className="mr-2" />,
       subItems: [
-        { name: 'Book', path: '/book', icon: <FaMoneyBill className="mr-2" /> },
-        { name: 'Overall Bookings', path: '/allbookings', icon: <FaList className="mr-2" /> },
+        { name: 'Bill', path: '/book', icon: <FaMoneyBill className="mr-2" /> },
+        { name: 'Overall Billings', path: '/allbookings', icon: <FaList className="mr-2" /> },
       ],
     },
     { name: 'Overall Stocks', path: '/analysis', icon: <FaChartBar className="mr-2" />, allowed: can.analysis },
@@ -69,7 +69,7 @@ export default function Sidebar() {
   const getToggle = (name) => {
     if (name === 'Inventory') return { toggle: toggleInventory, isOpen: isInventoryOpen };
     if (name === 'Godown') return { toggle: toggleGodown, isOpen: isGodownOpen };
-    if (name === 'Booking') return { toggle: toggleBooking, isOpen: isBookingOpen };
+    if (name === 'Billing') return { toggle: toggleBooking, isOpen: isBookingOpen };
     return { toggle: () => {}, isOpen: false };
   };
 

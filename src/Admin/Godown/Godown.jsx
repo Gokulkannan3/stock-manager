@@ -4,15 +4,14 @@ import Sidebar from '../Sidebar/Sidebar';
 import Logout from '../Logout';
 import { API_BASE_URL } from '../../../Config';
 import { FaPlus, FaSpinner } from 'react-icons/fa';
+import Select from 'react-select';
 
 export default function Godown() {
   const [godowns, setGodowns] = useState([]);
   const [newGodownName, setNewGodownName] = useState('');
-  const [selectedGodown, setSelectedGodown] = useState('');
-  const [productTypes, setProductTypes] = useState([]);
-  const [selectedProductType, setSelectedProductType] = useState('');
-  const [products, setProducts] = useState([]);
-  const [selectedProduct, setSelectedProduct] = useState('');
+  const [selectedGodown, setSelectedGodown] = useState(null);
+  const [allProducts, setAllProducts] = useState([]);   // <-- all products
+  const [selectedProduct, setSelectedProduct] = useState(null);
   const [casesAdded, setCasesAdded] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -37,58 +36,43 @@ export default function Godown() {
     },
   };
 
-  // Safe capitalize function
-  const capitalize = (str) => {
-    if (!str || typeof str !== 'string') return '';
-    return str
+  const capitalize = (str) =>
+    str ? str
       .toLowerCase()
       .split('_')
-      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(' ');
-  };
+      .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(' ') : '';
 
+  /* ---------- FETCH DATA ---------- */
   const fetchGodowns = useCallback(async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/godowns`);
-      if (!response.ok) throw new Error('Failed to fetch godowns');
-      const data = await response.json();
+      const res = await fetch(`${API_BASE_URL}/api/godowns`);
+      if (!res.ok) throw new Error('Failed to fetch godowns');
+      const data = await res.json();
       setGodowns(data);
-    } catch (err) {
+    } catch {
       setError('Failed to load godowns');
     }
   }, []);
 
-  const fetchProductTypes = useCallback(async () => {
+  // NEW: fetch **all** products in one call
+  const fetchAllProducts = useCallback(async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/product-types`);
-      if (!response.ok) throw new Error('Failed');
-      const data = await response.json();
-      setProductTypes(data.map(item => item.product_type).filter(Boolean));
-    } catch (err) {
-      setError('Failed to load types');
+      const res = await fetch(`${API_BASE_URL}/api/products`);   // <-- endpoint that returns everything
+      if (!res.ok) throw new Error('Failed');
+      const data = await res.json();
+      setAllProducts(data);
+    } catch {
+      setError('Failed to load products');
     }
   }, []);
 
-  const fetchProductsByType = async (type) => {
-    if (!type) {
-      setProducts([]);
-      return;
-    }
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/products/${type}`);
-      if (!response.ok) throw new Error('Failed');
-      const data = await response.json();
-      setProducts(data);
-    } catch (err) {
-      setError('Failed to load products');
-    }
-  };
-
   useEffect(() => {
     fetchGodowns();
-    fetchProductTypes();
-  }, [fetchGodowns, fetchProductTypes]);
+    fetchAllProducts();
+  }, [fetchGodowns, fetchAllProducts]);
 
+  /* ---------- CREATE GODOWN ---------- */
   const handleCreateGodown = async () => {
     if (!newGodownName.trim()) return setError('Name required');
     setLoading(true);
@@ -104,35 +88,35 @@ export default function Godown() {
       setSuccess('Godown created');
       setNewGodownName('');
       await fetchGodowns();
-    } catch (err) {
-      setError(err.message);
+    } catch (e) {
+      setError(e.message);
     } finally {
       setLoading(false);
     }
   };
 
+  /* ---------- ADD STOCK ---------- */
   const handleAddStock = async () => {
-    if (!selectedGodown || !selectedProductType || !selectedProduct || !casesAdded) {
+    if (!selectedGodown || !selectedProduct || !casesAdded) {
       return setError('All fields required');
     }
-    const casesNum = parseInt(casesAdded, 10);
-    if (isNaN(casesNum) || casesNum <= 0) return setError('Valid cases required');
+    const cases = parseInt(casesAdded, 10);
+    if (isNaN(cases) || cases <= 0) return setError('Valid cases required');
 
     setLoading(true);
     setError('');
     setSuccess('');
 
     try {
-      const { productname, brand } = JSON.parse(selectedProduct);
-      const res = await fetch(`${API_BASE_URL}/api/godowns/${selectedGodown}/stock`, {
+      const res = await fetch(`${API_BASE_URL}/api/godowns/${selectedGodown.value}/stock`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          godown_id: selectedGodown,
-          product_type: selectedProductType,
-          productname,
-          brand,
-          cases_added: casesNum,
+          godown_id: selectedGodown.value,
+          product_type: selectedProduct.product_type,   // still needed by backend
+          productname: selectedProduct.productname,
+          brand: selectedProduct.brand,
+          cases_added: cases,
         }),
       });
       const data = await res.json();
@@ -140,10 +124,10 @@ export default function Godown() {
 
       setSuccess('Stock added!');
       setCasesAdded('');
-      setSelectedProduct('');
+      setSelectedProduct(null);
       await fetchGodowns();
-    } catch (err) {
-      setError(err.message);
+    } catch (e) {
+      setError(e.message);
     } finally {
       setLoading(false);
     }
@@ -153,38 +137,101 @@ export default function Godown() {
     if (!selectedProduct || !casesAdded) return '—';
     const cases = parseInt(casesAdded, 10);
     if (isNaN(cases) || cases <= 0) return '—';
-    try {
-      const { productname, brand } = JSON.parse(selectedProduct);
-      const product = products.find(p => p.productname === productname && p.brand === brand);
-      return product ? product.per_case * cases : '—';
-    } catch {
-      return '—';
-    }
+    return selectedProduct.per_case * cases;
   };
 
+  /* ---------- react-select styles ---------- */
+  const customSelectStyles = {
+    control: (p, s) => ({
+      ...p,
+      background: styles.input.background,
+      border: `1px solid ${s.isFocused ? 'rgba(59,130,246,0.8)' : styles.input.border}`,
+      boxShadow: s.isFocused ? '0 0 0 1px rgba(59,130,246,0.8)' : 'none',
+      backdropFilter: 'blur(10px)',
+      borderRadius: '0.5rem',
+      minHeight: '38px',
+      fontSize: '0.875rem',
+      '&:hover': { borderColor: 'rgba(59,130,246,0.8)' },
+    }),
+    menu: (p) => ({
+      ...p,
+      background: styles.input.background,
+      backdropFilter: 'blur(10px)',
+      border: `1px solid ${styles.input.border}`,
+      borderRadius: '0.5rem',
+      marginTop: '4px',
+      zIndex: 50,
+    }),
+    option: (p, s) => ({
+      ...p,
+      backgroundColor: s.isSelected
+        ? 'rgba(2,132,199,0.2)'
+        : s.isFocused
+        ? 'rgba(2,132,199,0.1)'
+        : 'transparent',
+      color: s.isSelected ? '#1e40af' : 'inherit',
+      fontSize: '0.875rem',
+      padding: '8px 12px',
+    }),
+    singleValue: (p) => ({ ...p, color: 'inherit' }),
+    placeholder: (p) => ({ ...p, color: '#9ca3af' }),
+    dropdownIndicator: (p) => ({
+      ...p,
+      color: '#6b7280',
+      '&:hover': { color: '#374151' },
+    }),
+  };
+
+  /* ---------- Options for react-select ---------- */
+  const godownOptions = godowns.map(g => ({
+    value: g.id,
+    label: capitalize(g.name || ''),
+  }));
+
+  const productOptions = allProducts.map(p => ({
+    value: p.id,
+    label: `${p.productname} (${capitalize(p.brand || '')})`,
+    productname: p.productname,
+    brand: p.brand,
+    per_case: p.per_case,
+    product_type: p.product_type,   // keep for payload
+  }));
+
+  /* ---------- JSX ---------- */
   return (
     <div className="flex min-h-screen bg-gray-100 dark:bg-gray-900">
       <Sidebar />
       <Logout />
       <div className="flex-1 p-4 pt-16">
         <div className="max-w-4xl mx-auto">
-          {/* Page Title */}
-          <h2 className="text-xl font-bold text-center text-gray-900 dark:text-gray-100 mb-4">Godown & Stock</h2>
 
-          {/* Messages */}
-          {error && <div className="mb-3 p-2 bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-200 rounded text-xs text-center">{error}</div>}
-          {success && <div className="mb-3 p-2 bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-200 rounded text-xs text-center">{success}</div>}
+          <h2 className="text-xl font-bold text-center text-gray-900 dark:text-gray-100 mb-4">
+            Godown & Stock
+          </h2>
+
+          {error && (
+            <div className="mb-3 p-2 bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-200 rounded text-xs text-center">
+              {error}
+            </div>
+          )}
+          {success && (
+            <div className="mb-3 p-2 bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-200 rounded text-xs text-center">
+              {success}
+            </div>
+          )}
 
           <div className="space-y-6">
 
-            {/* Create Godown */}
+            {/* ---- CREATE GODOWN ---- */}
             <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
-              <h3 className="text-md font-semibold mb-2 text-black dark:text-white">Create Godown</h3>
+              <h3 className="text-md font-semibold mb-2 text-black dark:text-white">
+                Create Godown
+              </h3>
               <div className="flex gap-2">
                 <input
                   type="text"
                   value={newGodownName}
-                  onChange={(e) => setNewGodownName(e.target.value)}
+                  onChange={e => setNewGodownName(e.target.value)}
                   placeholder="Name"
                   className="flex-1 rounded px-2 py-1.5 text-xs border"
                   style={styles.input}
@@ -202,73 +249,52 @@ export default function Godown() {
               </div>
             </div>
 
-            {/* Add Stock Form */}
+            {/* ---- ADD STOCK FORM ---- */}
             <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
-              <h3 className="text-md font-semibold mb-3 text-black dark:text-white">Add Stock</h3>
+              <h3 className="text-md font-semibold mb-3 text-black dark:text-white">
+                Add Stock
+              </h3>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+
+                {/* Godown */}
                 <div>
-                  <label className="block mb-1 text-black dark:text-white">Godown</label>
-                  <select
+                  <label className="block mb-1 font-medium text-black dark:text-white">Godown</label>
+                  <Select
                     value={selectedGodown}
-                    onChange={(e) => setSelectedGodown(e.target.value)}
-                    className="w-full rounded px-2 py-1.5 border text-sm"
-                    style={styles.input}
-                    disabled={loading}
-                  >
-                    <option value="">Select</option>
-                    {godowns.map(g => (
-                      <option key={g.id} value={g.id}>{capitalize(g.name || '')}</option>
-                    ))}
-                  </select>
+                    onChange={setSelectedGodown}
+                    options={godownOptions}
+                    placeholder="Search godown..."
+                    isClearable
+                    isSearchable
+                    styles={customSelectStyles}
+                    isDisabled={loading}
+                  />
                 </div>
 
+                {/* Product (searchable, shows brand) */}
                 <div>
-                  <label className="block font-medium mb-1 text-black dark:text-white">Type</label>
-                  <select
-                    value={selectedProductType}
-                    onChange={(e) => {
-                      setSelectedProductType(e.target.value);
-                      setSelectedProduct('');
-                      fetchProductsByType(e.target.value);
-                    }}
-                    className="w-full rounded px-2 py-1.5 border text-sm"
-                    style={styles.input}
-                    disabled={loading}
-                  >
-                    <option value="">Select</option>
-                    {productTypes.map(t => (
-                      <option key={t} value={t}>{capitalize(t)}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block font-medium mb-1 text-black dark:text-white">Product</label>
-                  <select
+                  <label className="block mb-1 font-medium text-black dark:text-white">Product</label>
+                  <Select
                     value={selectedProduct}
-                    onChange={(e) => setSelectedProduct(e.target.value)}
-                    className="w-full rounded px-2 py-1.5 border text-sm"
-                    style={styles.input}
-                    disabled={loading || !selectedProductType}
-                  >
-                    <option value="">Select</option>
-                    {products.map(p => (
-                      <option
-                        key={`${p.productname}-${p.brand}`}
-                        value={JSON.stringify({ productname: p.productname, brand: p.brand })}
-                      >
-                        {p.productname} ({capitalize(p.brand || '')})
-                      </option>
-                    ))}
-                  </select>
+                    onChange={setSelectedProduct}
+                    options={productOptions}
+                    placeholder="Search product..."
+                    isClearable
+                    isSearchable
+                    styles={customSelectStyles}
+                    isDisabled={loading}
+                    noOptionsMessage={() => 'No products found'}
+                  />
                 </div>
 
+                {/* Cases */}
                 <div>
-                  <label className="block font-medium mb-1 text-black dark:text-white">Cases</label>
+                  <label className="block mb-1 font-medium text-black dark:text-white">Cases</label>
                   <input
                     type="number"
                     value={casesAdded}
-                    onChange={(e) => setCasesAdded(e.target.value)}
+                    onChange={e => setCasesAdded(e.target.value)}
                     placeholder="10"
                     min="1"
                     className="w-full rounded px-2 py-1.5 border text-sm"
@@ -277,9 +303,12 @@ export default function Godown() {
                   />
                 </div>
 
+                {/* Total Items */}
                 <div className="sm:col-span-2">
-                  <label className="block font-medium mb-1 text-black dark:text-white">Total Items</label>
-                  <p className="text-lg font-bold text-blue-600 dark:text-blue-400">{calculateTotalItems()}</p>
+                  <label className="block mb-1 font-medium text-black dark:text-white">Total Items</label>
+                  <p className="text-lg font-bold text-blue-600 dark:text-blue-400">
+                    {calculateTotalItems()}
+                  </p>
                 </div>
               </div>
 
