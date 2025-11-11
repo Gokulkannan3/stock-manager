@@ -165,7 +165,7 @@ export default function StockAnalysis() {
           {/* Grand Totals */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mobile:gap-4 mb-8 mobile:mb-6">
             <div className="bg-gradient-to-r from-blue-500 to-cyan-600 p-6 mobile:p-4 rounded-lg text-white">
-              <p className="text-sm mobile:text-xs opacity-80">Unique Products</p>
+              <p className="text-sm mobile:text-xs opacity-80">Products</p>
               <p className="text-3xl mobile:text-2xl font-bold">{data.grandTotal.unique_products}</p>
             </div>
             <div className="bg-gradient-to-r from-green-500 to-teal-600 p-6 mobile:p-4 rounded-lg text-white">
