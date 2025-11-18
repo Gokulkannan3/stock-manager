@@ -7,10 +7,14 @@ import Select from 'react-select';
 
 export default function Godown() {
   const [godowns, setGodowns] = useState([]);
-  const [allProducts, setAllProducts] = useState([]);
+  const [brands, setBrands] = useState([]);
+  const [allProducts, setAllProducts] = useState([]); // Keep full list
+
+  // Per-row state (each row has its own filters)
   const [rows, setRows] = useState([
-    { id: Date.now(), godown: null, product: null, cases: '' }
+    { id: Date.now(), godown: null, brand: null, productType: null, product: null, cases: '' }
   ]);
+
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
@@ -32,9 +36,9 @@ export default function Godown() {
   };
 
   const capitalize = (str) =>
-    str ? str.toLowerCase().split('_').map(w => w[0].toUpperCase() + w.slice(1)).join(' ') : '';
+    str ? str.toLowerCase().replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : '';
 
-  /* ---------- FETCH ---------- */
+  /* ---------- FETCH DATA ---------- */
   const fetchGodowns = useCallback(async () => {
     try {
       const res = await fetch(`${API_BASE_URL}/api/godowns`);
@@ -42,6 +46,18 @@ export default function Godown() {
       const data = await res.json();
       setGodowns(data.map(g => ({ value: g.id, label: capitalize(g.name) })));
     } catch { setError('Failed to load godowns'); }
+  }, []);
+
+  const fetchBrands = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/brands`);
+      if (!res.ok) throw new Error('Failed');
+      const data = await res.json();
+      setBrands(data.map(b => ({
+        value: b.name,
+        label: capitalize(b.name),
+      })));
+    } catch { setError('Failed to load brands'); }
   }, []);
 
   const fetchAllProducts = useCallback(async () => {
@@ -62,8 +78,72 @@ export default function Godown() {
 
   useEffect(() => {
     fetchGodowns();
+    fetchBrands();
     fetchAllProducts();
-  }, [fetchGodowns, fetchAllProducts]);
+  }, [fetchGodowns, fetchBrands, fetchAllProducts]);
+
+  /* ---------- HELPER: Get Product Types for a Brand ---------- */
+  const getProductTypesForBrand = (brandValue) => {
+    if (!brandValue) return [];
+    const types = [...new Set(
+      allProducts
+        .filter(p => p.brand?.toLowerCase() === brandValue.toLowerCase())
+        .map(p => p.product_type)
+        .filter(Boolean)
+    )];
+    return types.map(t => ({
+      value: t,
+      label: capitalize(t),
+    }));
+  };
+
+  /* ---------- HELPER: Get Products for Brand + Type ---------- */
+  const getProductsForBrandAndType = (brandValue, typeValue) => {
+    if (!brandValue || !typeValue) return [];
+    return allProducts.filter(p =>
+      p.brand?.toLowerCase() === brandValue.toLowerCase() &&
+      p.product_type?.toLowerCase() === typeValue.toLowerCase()
+    );
+  };
+
+  /* ---------- ROW MANAGEMENT ---------- */
+  const addRow = () => {
+    setRows(prev => [...prev, {
+      id: Date.now(),
+      godown: null,
+      brand: null,
+      productType: null,
+      product: null,
+      cases: ''
+    }]);
+  };
+
+  const removeRow = (id) => {
+    setRows(prev => prev.filter(r => r.id !== id));
+  };
+
+  const updateRow = (id, field, value) => {
+    setRows(prev => prev.map(r => {
+      if (r.id === id) {
+        const updated = { ...r, [field]: value };
+        if (field === 'brand') {
+          updated.productType = null;
+          updated.product = null;
+        }
+        if (field === 'brand' || field === 'productType') {
+          updated.product = null;
+        }
+        return updated;
+      }
+      return r;
+    }));
+  };
+
+  const calculateItems = (product, cases) => {
+    if (!product || !cases) return 0;
+    const c = parseInt(cases, 10);
+    return isNaN(c) ? 0 : product.per_case * c;
+  };
 
   /* ---------- CREATE GODOWN ---------- */
   const handleCreateGodown = async () => {
@@ -76,36 +156,19 @@ export default function Godown() {
         body: JSON.stringify({ name: newGodownName.trim() }),
       });
       const d = await res.json();
-      if (!res.ok) throw new Error(d.message);
+      if (!res.ok) throw new Error(d.message || 'Failed');
       setSuccess('Godown created');
       setNewGodownName('');
       await fetchGodowns();
-    } catch (e) { setError(e.message); }
+    } catch (e) { setError(e.message || 'Failed'); }
     finally { setLoading(false); }
-  };
-
-  /* ---------- ROW MANAGEMENT ---------- */
-  const addRow = () => {
-    setRows(prev => [...prev, { id: Date.now(), godown: null, product: null, cases: '' }]);
-  };
-
-  const removeRow = (id) => {
-    setRows(prev => prev.filter(r => r.id !== id));
-  };
-
-  const updateRow = (id, field, value) => {
-    setRows(prev => prev.map(r => r.id === id ? { ...r, [field]: value } : r));
-  };
-
-  const calculateItems = (product, cases) => {
-    if (!product || !cases) return 0;
-    const c = parseInt(cases, 10);
-    return isNaN(c) ? 0 : product.per_case * c;
   };
 
   /* ---------- BULK ADD STOCK ---------- */
   const handleBulkAddStock = async () => {
-    const validRows = rows.filter(r => r.godown && r.product && r.cases && parseInt(r.cases, 10) > 0);
+    const validRows = rows.filter(r =>
+      r.godown && r.product && r.cases && parseInt(r.cases, 10) > 0
+    );
     if (validRows.length === 0) return setError('Add at least one valid row');
 
     setLoading(true); setError(''); setSuccess('');
@@ -130,8 +193,7 @@ export default function Godown() {
       const d = await res.json();
       if (!res.ok) throw new Error(d.message ?? 'Failed');
       setSuccess(`Added stock to ${validRows.length} allocation(s)!`);
-      setRows([{ id: Date.now(), godown: null, product: null, cases: '' }]);
-      await fetchGodowns();
+      setRows([{ id: Date.now(), godown: null, brand: null, productType: null, product: null, cases: '' }]);
     } catch (e) { setError(e.message); }
     finally { setLoading(false); }
   };
@@ -167,69 +229,49 @@ export default function Godown() {
   };
 
   return (
-    <div className="flex min-h-screen bg-gray-100 dark:bg-gray-900">
+    <div className="flex min-h-screen bg-gray-100 dark:bg-gray-900 text-black dark:text-white">
       <Sidebar />
       <Logout />
       <div className="flex-1 p-4 pt-16 overflow-auto">
-        <div className="hundred:max-w-5xl mx-auto mobile:max-w-full">
-          <h2 className="text-xl font-bold text-center text-gray-900 dark:text-gray-100 mb-4 mobile:text-lg">
+        <div className="max-w-5xl mx-auto">
+          <h2 className="text-2xl font-bold text-center text-gray-900 dark:text-gray-100 mb-6">
             Godown & Stock Allocation
           </h2>
 
-          {error && (
-            <div className="mb-3 p-2 bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-200 rounded text-xs text-center mobile:text-xs">
-              {error}
-            </div>
-          )}
-          {success && (
-            <div className="mb-3 p-2 bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-200 rounded text-xs text-center mobile:text-xs">
-              {success}
-            </div>
-          )}
+          {error && <div className="mb-4 p-3 bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-200 rounded text-center">{error}</div>}
+          {success && <div className="mb-4 p-3 bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-200 rounded text-center">{success}</div>}
 
-          <div className="space-y-6">
+          <div className="space-y-8">
 
-            {/* ---- CREATE GODOWN ---- */}
-            <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mobile:p-3">
-              <h3 className="text-md font-semibold mb-2 text-black dark:text-white mobile:text-sm">Create Godown</h3>
-              <div className="flex gap-2">
+            {/* Create Godown */}
+            <div className="bg-white dark:bg-gray-800 p-5 rounded-lg shadow">
+              <h3 className="text-lg font-semibold mb-3">Create New Godown</h3>
+              <div className="flex gap-3">
                 <input
                   type="text"
                   value={newGodownName}
                   onChange={e => setNewGodownName(e.target.value)}
-                  placeholder="Name"
-                  className="flex-1 rounded px-2 py-1.5 text-xs border mobile:py-2 mobile:text-sm"
+                  placeholder="Enter godown name"
+                  className="flex-1 px-4 py-2 rounded border text-sm"
                   style={styles.input}
                   disabled={loading}
                 />
-                <button
-                  onClick={handleCreateGodown}
-                  disabled={loading}
-                  className="px-3 py-1.5 rounded text-white text-xs font-medium flex items-center gap-1 disabled:opacity-50 mobile:justify-center mobile:py-2"
-                  style={styles.button}
-                >
-                  {loading ? <FaSpinner className="animate-spin h-3 w-3" /> : <FaPlus className="h-3 w-3" />}
-                  Add
+                <button onClick={handleCreateGodown} disabled={loading} style={styles.button} className="px-5 py-2 rounded text-white font-medium flex items-center gap-2">
+                  {loading ? <FaSpinner className="animate-spin" /> : <FaPlus />} Add Godown
                 </button>
               </div>
             </div>
 
-            {/* ---- ALLOCATION CARDS ---- */}
-            <div className="space-y-4">
-              <div className="flex justify-between items-center">
-                <h3 className="text-md font-semibold text-black dark:text-white mobile:text-sm">Allocate Stock</h3>
-              </div>
+            {/* Allocation Rows */}
+            <div className="space-y-6">
+              <h3 className="text-lg font-semibold">Add Stock Allocations</h3>
 
               {rows.map((row, idx) => (
-                <div
-                  key={row.id}
-                  className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow border border-gray-200 dark:border-gray-700 mobile:p-3"
-                >
+                <div key={row.id} className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow border border-gray-200 dark:border-gray-700">
+
                   {/* Godown */}
-                  <div className="mb-3">
-                    <label className="block text-md font-medium text-gray-700 dark:text-gray-300 mb-1">
-                      Godown {rows.length > 1 && `#${idx + 1}`}
-                    </label>
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium mb-2">Godown {rows.length > 1 && `#${idx + 1}`}</label>
                     <Select
                       value={row.godown}
                       onChange={val => updateRow(row.id, 'godown', val)}
@@ -237,93 +279,103 @@ export default function Godown() {
                       placeholder="Select godown..."
                       isSearchable
                       styles={customSelectStyles}
-                      isDisabled={loading}
                       menuPortalTarget={document.body}
                     />
                   </div>
 
-                  {/* Product */}
-                  <div className="mb-3">
-                    <label className="block text-md font-medium text-gray-700 dark:text-gray-300 mb-1">
-                      Product
-                    </label>
+                  {/* Brand */}
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium mb-2">Brand</label>
+                    <Select
+                      value={row.brand}
+                      onChange={val => updateRow(row.id, 'brand', val)}
+                      options={brands}
+                      placeholder="Select brand first..."
+                      isSearchable
+                      styles={customSelectStyles}
+                      menuPortalTarget={document.body}
+                    />
+                  </div>
+
+                  {/* Product Type - Dynamic */}
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium mb-2">Product Type</label>
+                    <Select
+                      value={row.productType}
+                      onChange={val => updateRow(row.id, 'productType', val)}
+                      options={row.brand ? getProductTypesForBrand(row.brand.value) : []}
+                      placeholder={row.brand ? "Select type..." : "First select a brand"}
+                      isDisabled={!row.brand}
+                      isSearchable
+                      styles={customSelectStyles}
+                      menuPortalTarget={document.body}
+                    />
+                  </div>
+
+                  {/* Product - Dynamic */}
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium mb-2">Product</label>
                     <Select
                       value={row.product}
                       onChange={val => updateRow(row.id, 'product', val)}
-                      options={allProducts}
-                      placeholder="Select product..."
+                      options={row.brand && row.productType ? getProductsForBrandAndType(row.brand.value, row.productType.value) : []}
+                      placeholder={
+                        !row.brand ? "Select brand first" :
+                        !row.productType ? "Select type first" :
+                        "Select product..."
+                      }
+                      isDisabled={!row.brand || !row.productType}
                       isSearchable
                       styles={customSelectStyles}
-                      isDisabled={loading}
                       menuPortalTarget={document.body}
                     />
                   </div>
 
                   {/* Cases & Total */}
-                  <div className="grid grid-cols-2 gap-3 mobile:grid-cols-1">
+                  <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-md font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Cases
-                      </label>
+                      <label className="block text-sm font-medium mb-2">Cases</label>
                       <input
                         type="number"
                         min="1"
                         value={row.cases}
                         onChange={e => updateRow(row.id, 'cases', e.target.value)}
-                        placeholder="0"
-                        className="w-full rounded px-2 py-1.5 text-md border mobile:text-sm"
+                        className="w-full px-4 py-2 rounded border text-black"
                         style={styles.input}
-                        disabled={loading}
+                        placeholder="Enter cases"
                       />
                     </div>
                     <div>
-                      <label className="block text-md font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Total Items
-                      </label>
-                      <p className="text-md font-bold text-blue-600 dark:text-blue-400 mobile:text-base">
+                      <label className="block text-sm font-medium mb-2">Total Items</label>
+                      <div className="text-xl font-bold text-blue-600 dark:text-blue-400 pt-2">
                         {calculateItems(row.product, row.cases).toLocaleString()}
-                      </p>
+                      </div>
                     </div>
                   </div>
 
-                  {/* Remove Button */}
                   {rows.length > 1 && (
-                    <div className="mt-3 text-right flex justify-center">
-                      <button
-                        onClick={() => removeRow(row.id)}
-                        className="text-red-600 hover:text-red-800 text-lg flex items-center gap-1"
-                        disabled={loading}
-                      >
-                        <FaTrash className="h-4 w-4 mobile:h-2.5 mobile:w-2.5" />
-                        Remove
+                    <div className="mt-4 text-right">
+                      <button onClick={() => removeRow(row.id)} className="text-red-600 hover:text-red-800 text-sm">
+                        <FaTrash className="inline mr-1" /> Remove Row
                       </button>
                     </div>
                   )}
                 </div>
               ))}
-              <div className='flex justify-center'>
-                <button
-                  onClick={addRow}
-                  className="px-3 py-1.5 rounded text-white text-md font-medium flex items-center gap-1 mobile:px-2 mobile:py-1.5"
-                  style={styles.button}
-                  disabled={loading}
-                >
-                  <FaPlus className="h-3 w-3 mobile:h-2.5 mobile:w-2.5" /> Add Row
+
+              <div className="flex justify-center gap-4">
+                <button onClick={addRow} style={styles.button} className="px-6 py-3 rounded text-white font-medium flex items-center gap-2">
+                  <FaPlus /> Add Another Row
                 </button>
               </div>
 
-              {/* Submit */}
               <button
                 onClick={handleBulkAddStock}
                 disabled={loading}
-                className="w-full px-4 py-2.5 rounded text-white text-sm font-medium disabled:opacity-50 flex items-center justify-center gap-2 mobile:text-sm mobile:py-2"
                 style={styles.button}
+                className="w-full py-4 rounded text-white text-lg font-semibold disabled:opacity-50"
               >
-                {loading ? (
-                  <>Adding... <FaSpinner className="animate-spin h-3 w-3" /></>
-                ) : (
-                  'Add All Allocations'
-                )}
+                {loading ? <>Processing... <FaSpinner className="inline ml-2 animate-spin" /></> : 'Add All Stock Allocations'}
               </button>
             </div>
           </div>
