@@ -287,11 +287,11 @@ ${allPayments.length ? `
                           <span className="text-blue-600">₹{parseFloat(b.paid || 0).toFixed(2)}</span>
                         </div>
                         <div className="flex justify-between font-bold text-lg">
-                          <span className={b.balance >= 0 ? "text-red-600" : "text-green-600"}>
-                            {b.balance >= 0 ? "Due:" : "Adv:"}
+                          <span className="text-white">
+                            Balance
                           </span>
                           <span className={b.balance >= 0 ? "text-red-600" : "text-green-600"}>
-                            ₹{Math.abs(b.balance).toFixed(2)}
+                            ₹{Math.abs(b.total).toFixed(2)-Math.abs(b.paid).toFixed(2)}
                           </span>
                         </div>
                       </div>
