@@ -1,76 +1,95 @@
-import React, { useState } from 'react';
-import { NavLink } from 'react-router-dom';
+// src/components/Sidebar/Sidebar.jsx
+import React, { useState } from "react";
+import { NavLink } from "react-router-dom";
 import {
   FaBox, FaList, FaChartBar, FaSearch, FaChartLine, FaBars, FaTimes,
-  FaPlus, FaWarehouse, FaAngleDown, FaAngleUp, FaUser, FaMoneyBill, FaMoneyBillAlt
-} from 'react-icons/fa';
+  FaPlus, FaWarehouse, FaAngleDown, FaAngleUp, FaUser, FaMoneyBill,
+  FaMoneyBillAlt, FaBook, FaTruck, FaCreditCard
+} from "react-icons/fa";
 
 export default function Sidebar() {
   const [isOpen, setIsOpen] = useState(false);
   const [isInventoryOpen, setIsInventoryOpen] = useState(false);
   const [isGodownOpen, setIsGodownOpen] = useState(false);
-  const [isBookingOpen, setIsBookingOpen] = useState(false);
+  const [isBillingOpen, setIsBillingOpen] = useState(false);
+  const [isAccountsOpen, setIsAccountsOpen] = useState(false); // New Accounts section
 
-  const userType = localStorage.getItem('userType') || 'worker';
+  const userType = localStorage.getItem("userType") || "worker";
 
-  // -------------------------------------------------
-  // Permission matrix
+  // ────── Permission Matrix ──────
   const can = {
-    inventory: userType === 'admin',
-    godown: ['admin', 'agent', 'worker'].includes(userType),
-    booking: userType === 'admin', // ← Only admin can see Booking
-    analysis: userType === 'admin',
-    search: ['admin', 'agent', 'worker'].includes(userType),
-    analytics: userType === 'admin',
-    profile: userType === 'admin',
+    inventory: userType === "admin",
+    godown: ["admin", "agent", "worker"].includes(userType),
+    billing: userType === "admin",
+    accounts: ["admin", "worker"].includes(userType), // Ledger, Dispatch, Payments
+    analysis: userType === "admin",
+    search: ["admin", "agent", "worker"].includes(userType),
+    analytics: userType === "admin",
+    profile: userType === "admin",
   };
-  // -------------------------------------------------
 
+  // ────── Navigation Items ──────
   const navItems = [
     {
-      name: 'Inventory',
+      name: "Inventory",
       allowed: can.inventory,
       icon: <FaBox className="mr-2" />,
       subItems: [
-        { name: 'Add Product', path: '/inventory', icon: <FaPlus className="mr-2" /> },
-        { name: 'Listing', path: '/listing', icon: <FaList className="mr-2" /> },
+        { name: "Add Product", path: "/inventory", icon: <FaPlus className="mr-2" /> },
+        { name: "Listing", path: "/listing", icon: <FaList className="mr-2" /> },
       ],
     },
     {
-      name: 'Godown',
+      name: "Godown",
       allowed: can.godown,
       icon: <FaWarehouse className="mr-2" />,
       subItems: [
-        { name: 'Add Stock', path: '/godown', icon: <FaPlus className="mr-2" /> },
-        { name: 'View Stocks', path: '/viewstock', icon: <FaList className="mr-2" /> },
+        { name: "Add Stock", path: "/godown", icon: <FaPlus className="mr-2" /> },
+        { name: "View Stocks", path: "/viewstock", icon: <FaList className="mr-2" /> },
       ],
     },
     {
-      name: 'Billing',
-      allowed: can.booking,
+      name: "Billing",
+      allowed: can.billing,
       icon: <FaMoneyBillAlt className="mr-2" />,
       subItems: [
-        { name: 'Bill', path: '/book', icon: <FaMoneyBill className="mr-2" /> },
-        { name: 'Overall Billings', path: '/allbookings', icon: <FaList className="mr-2" /> },
+        { name: "Bill", path: "/book", icon: <FaMoneyBill className="mr-2" /> },
+        { name: "Overall Billings", path: "/allbookings", icon: <FaList className="mr-2" /> },
       ],
     },
-    { name: 'Overall Stocks', path: '/analysis', icon: <FaChartBar className="mr-2" />, allowed: can.analysis },
-    { name: 'Search product', path: '/search', icon: <FaSearch className="mr-2" />, allowed: can.search },
-    { name: 'Analytics', path: '/analytics', icon: <FaChartLine className="mr-2" />, allowed: can.analytics },
-    { name: 'Profile', path: '/profile', icon: <FaUser className="mr-2" />, allowed: can.profile },
+    {
+      name: "Accounts",
+      allowed: can.accounts,
+      icon: <FaBook className="mr-2" />,
+      subItems: [
+        { name: "Admin", path: "/adm", icon: <FaBook className="mr-2" /> },
+        { name: "Ledger", path: "/ledger", icon: <FaBook className="mr-2" /> },
+        { name: "Dispatch", path: "/dispatch", icon: <FaTruck className="mr-2" /> },
+        { name: "Payments", path: "/payments", icon: <FaCreditCard className="mr-2" /> },
+      ],
+    },
+    { name: "Overall Stocks", path: "/analysis", icon: <FaChartBar className="mr-2" />, allowed: can.analysis },
+    { name: "Search product", path: "/search", icon: <FaSearch className="mr-2" />, allowed: can.search },
+    { name: "Analytics", path: "/analytics", icon: <FaChartLine className="mr-2" />, allowed: can.analytics },
+    { name: "Profile", path: "/profile", icon: <FaUser className="mr-2" />, allowed: can.profile },
+    { name: 'Retail', path: '/direct-enquiry', icon: <FaBook className="mr-2" /> },
   ];
 
+  // ────── Toggle Functions ──────
   const toggleSidebar = () => setIsOpen(!isOpen);
   const toggleInventory = () => setIsInventoryOpen(!isInventoryOpen);
   const toggleGodown = () => setIsGodownOpen(!isGodownOpen);
-  const toggleBooking = () => setIsBookingOpen(!isBookingOpen);
+  const toggleBilling = () => setIsBillingOpen(!isBillingOpen);
+  const toggleAccounts = () => setIsAccountsOpen(!isAccountsOpen);
 
-  // Helper to get toggle & state for each section
   const getToggle = (name) => {
-    if (name === 'Inventory') return { toggle: toggleInventory, isOpen: isInventoryOpen };
-    if (name === 'Godown') return { toggle: toggleGodown, isOpen: isGodownOpen };
-    if (name === 'Billing') return { toggle: toggleBooking, isOpen: isBookingOpen };
-    return { toggle: () => {}, isOpen: false };
+    switch (name) {
+      case "Inventory": return { toggle: toggleInventory, isOpen: isInventoryOpen };
+      case "Godown": return { toggle: toggleGodown, isOpen: isGodownOpen };
+      case "Billing": return { toggle: toggleBilling, isOpen: isBillingOpen };
+      case "Accounts": return { toggle: toggleAccounts, isOpen: isAccountsOpen };
+      default: return { toggle: () => {}, isOpen: false };
+    }
   };
 
   return (
@@ -78,7 +97,7 @@ export default function Sidebar() {
       {/* Hamburger for mobile */}
       {!isOpen && (
         <button
-          className="hundred:hidden fixed top-4 left-4 z-50 text-white bg-gray-800 p-2 rounded-md"
+          className="md:hidden fixed top-4 left-4 z-50 text-white bg-gray-800 p-2 rounded-md"
           onClick={toggleSidebar}
         >
           <FaBars size={24} />
@@ -88,12 +107,12 @@ export default function Sidebar() {
       {/* Sidebar */}
       <div
         className={`fixed top-0 left-0 h-screen bg-black/80 text-white flex flex-col transition-transform duration-300 ease-in-out ${
-          isOpen ? 'translate-x-0' : '-translate-x-full'
-        } hundred:translate-x-0 mobile:w-64 w-64 z-40`}
+          isOpen ? "translate-x-0" : "-translate-x-full"
+        } md:translate-x-0 w-64 z-40`}
       >
         <div className="p-4 text-xl font-bold border-b border-gray-700 flex items-center justify-between">
           Admin Panel
-          <button className="hundred:hidden text-white" onClick={toggleSidebar}>
+          <button className="md:hidden text-white" onClick={toggleSidebar}>
             <FaTimes size={20} />
           </button>
         </div>
@@ -122,7 +141,7 @@ export default function Sidebar() {
 
                       <ul
                         className={`pl-4 overflow-hidden transition-all duration-300 ease-in-out ${
-                          sectionOpen ? 'max-h-96' : 'max-h-0'
+                          sectionOpen ? "max-h-96" : "max-h-0"
                         }`}
                       >
                         {item.subItems.map((sub) => (
@@ -131,7 +150,7 @@ export default function Sidebar() {
                               to={sub.path}
                               className={({ isActive }) =>
                                 `flex items-center py-2 px-6 text-sm font-medium hover:bg-black/50 transition-colors ${
-                                  isActive ? 'bg-gray-900 text-white' : ''
+                                  isActive ? "bg-gray-900 text-white" : ""
                                 }`
                               }
                               onClick={() => setIsOpen(false)}
@@ -148,7 +167,7 @@ export default function Sidebar() {
                       to={item.path}
                       className={({ isActive }) =>
                         `flex items-center py-3 px-6 text-sm font-medium hover:bg-black/50 transition-colors ${
-                          isActive ? 'bg-gray-900 text-white' : ''
+                          isActive ? "bg-gray-900 text-white" : ""
                         }`
                       }
                       onClick={() => setIsOpen(false)}
@@ -167,7 +186,7 @@ export default function Sidebar() {
       {/* Backdrop */}
       {isOpen && (
         <div
-          className="hundred:hidden fixed inset-0 bg-black/50 z-30"
+          className="md:hidden fixed inset-0 bg-black/50 z-30"
           onClick={toggleSidebar}
         />
       )}

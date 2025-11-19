@@ -12,6 +12,10 @@ import GodownAnalytics from './Admin/Godownanalytics/GodownAnalytics';
 import Profile from './Admin/Login/Profile';
 import Booking from './Admin/Booking/Booking';
 import AllBookings from './Admin/Booking/Allbookings';
+import Ledger from './Admin/Ledger/Ledger'
+import Admin from './Admin/Ledger/Admin'
+import Dispatch from './Admin/Ledger/Dispatchs'
+import Pendingpayments from './Admin/Ledger/Pendingpayments'
 
 const AllRoutes = () => {
   return (
@@ -36,6 +40,10 @@ const AllRoutes = () => {
         <Route path="/profile" element={<Profile />} />
         <Route path="/book" element={<Booking />} />
         <Route path="/allbookings" element={<AllBookings />} />
+        <Route path="/ledger" element={<Ledger />} />
+        <Route path="/adm" element={<Admin />} />
+        <Route path="/payments" element={<Pendingpayments />} />
+        <Route path="/dispatch" element={<Dispatch />} />
       </Route>
     </Routes>
   );
