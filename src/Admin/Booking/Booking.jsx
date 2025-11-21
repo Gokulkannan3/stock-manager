@@ -4,28 +4,33 @@ import Logout from '../../Admin/Logout';
 import Select from 'react-select';
 import Modal from 'react-modal';
 import { API_BASE_URL } from '../../../Config';
-import { FaPlus, FaTrash, FaFilePdf, FaSpinner, FaDownload, FaTimes, FaSearch, FaChevronDown, FaChevronUp } from 'react-icons/fa';
+import { 
+  FaPlus, FaTrash, FaFilePdf, FaSpinner, FaDownload, FaTimes, 
+  FaSearch, FaChevronDown, FaChevronUp, FaBolt, FaCheckCircle, FaUser 
+} from 'react-icons/fa';
 
 Modal.setAppElement("#root");
 
 export default function Booking() {
+  const [billType, setBillType] = useState('estimate');
   const [godowns, setGodowns] = useState([]);
   const [selectedGodown, setSelectedGodown] = useState(null);
   const [stock, setStock] = useState([]);
   const [filteredStock, setFilteredStock] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
-  const [loadingCustomers, setLoadingCustomers] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [globalProducts, setGlobalProducts] = useState([]);
   const [loadingGlobalSearch, setLoadingGlobalSearch] = useState(false);
-  const [highlightedIndex, setHighlightedIndex] = useState(-1);
-  const [godownSearchQuery, setGodownSearchQuery] = useState('');
   const [cart, setCart] = useState([]);
+  const [fromChallan, setFromChallan] = useState(false);
+  const [challanId, setChallanId] = useState(null);
+
   const [customer, setCustomer] = useState({
     name: '', address: '', gstin: '', lr_number: '', agent_name: '',
-    from: '', to: '', through: ''
+    from: 'SIVAKASI', to: '', through: ''
   });
+
   const [additionalDiscount, setAdditionalDiscount] = useState(0);
   const [packingPercent, setPackingPercent] = useState(3.0);
   const [taxableValue, setTaxableValue] = useState('');
@@ -37,76 +42,93 @@ export default function Booking() {
   const [loading, setLoading] = useState(false);
   const [loadingGodowns, setLoadingGodowns] = useState(true);
   const [loadingStock, setLoadingStock] = useState(false);
-  const [loadingPDF, setLoadingPDF] = useState(false);
   const [isCustomerDetailsOpen, setIsCustomerDetailsOpen] = useState(true);
   const [applyProcessingFee, setApplyProcessingFee] = useState(true);
   const [applyCGST, setApplyCGST] = useState(false);
   const [applySGST, setApplySGST] = useState(false);
   const [applyIGST, setApplyIGST] = useState(false);
-  const searchInputRef = useRef(null);
+  const [pendingChallans, setPendingChallans] = useState([]);
+  const [loadingCustomers, setLoadingCustomers] = useState(false);
 
+  const searchInputRef = useRef(null);
   const styles = {
     input: { background: "linear-gradient(135deg, rgba(255,255,255,0.8), rgba(240,249,255,0.6))", backgroundDark: "linear-gradient(135deg, rgba(55,65,81,0.8), rgba(75,85,99,0.6))", backdropFilter: "blur(10px)", border: "1px solid rgba(2,132,199,0.3)", borderDark: "1px solid rgba(59,130,246,0.4)" },
     button: { background: "linear-gradient(135deg, rgba(2,132,199,0.9), rgba(14,165,233,0.95))", backgroundDark: "linear-gradient(135deg, rgba(59,130,246,0.9), rgba(37,99,235,0.95))", backdropFilter: "blur(15px)", border: "1px solid rgba(125,211,252,0.4)", borderDark: "1px solid rgba(147,197,253,0.4)", boxShadow: "0 15px 35px rgba(2,132,199,0.3), inset 0 1px 0 rgba(255,255,255,0.2)", boxShadowDark: "0 15px 35px rgba(59,130,246,0.4), inset 0 1px 0 rgba(255,255,255,0.1)" }
   };
 
-  const capitalize = (str) => str?.toLowerCase().split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') || '';
-  const shortenGodownName = (name) => name?.replace(/_/g, ' ').trim().split(/\s+/).filter(Boolean).map(w => /^\d+$/.test(w) ? w : w.charAt(0).toUpperCase()).join('') || '';
+  const textClass = "text-black dark:text-white";
+  const inputClass = "w-full rounded-lg px-4 py-2.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-black dark:text-white focus:outline-none focus:border-blue-500";
+  const cardClass = "bg-white dark:bg-gray-800 rounded-xl shadow-lg";
+  const tableText = "text-black dark:text-white";
 
+  const capitalize = (str) => str?.toLowerCase().split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') || '';
+  const shortenGodownName = (name) => name?.replace(/_/g, ' ').trim().split(/\s+/).map(w => /^\d+$/.test(w) ? w : w.charAt(0).toUpperCase()).join('') || '';
+
+  const fetchCustomers = useCallback(async () => {
+    setLoadingCustomers(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/customers`);
+      if (!res.ok) throw new Error('Failed to fetch customers');
+      const data = await res.json();
+      const enriched = data.map(c => ({
+        label: `${c.value.name} (${c.value.to || 'Unknown'})`,
+        value: c.value
+      }));
+      setCustomers(enriched);
+    } catch (err) {
+      setError('Failed to load customers');
+      console.error(err);
+    } finally {
+      setLoadingCustomers(false);
+    }
+  }, []);
+
+  // FETCH GODOWNS
   const fetchGodowns = useCallback(async () => {
     setLoadingGodowns(true);
     try {
       const res = await fetch(`${API_BASE_URL}/api/godown`);
-      if (!res.ok) throw new Error();
       const data = await res.json();
-      const options = data.map(g => ({ value: Number(g.id), label: capitalize(g.name), shortName: shortenGodownName(g.name) }));
+      const options = data.map(g => ({ 
+        value: Number(g.id), 
+        label: capitalize(g.name), 
+        shortName: shortenGodownName(g.name) 
+      }));
       setGodowns(options);
-    } catch {
+    } catch (err) {
       setError('Failed to load godowns');
     } finally {
       setLoadingGodowns(false);
     }
   }, []);
 
-  const fetchCustomers = useCallback(async () => {
-    setLoadingCustomers(true);
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/customers`);
-      if (!res.ok) throw new Error();
-      const data = await res.json();
-      const enriched = data.map(c => ({ label: `${c.value.name} (${c.value.to || 'Unknown'})`, value: c.value }));
-      setCustomers(enriched);
-    } catch {
-      setError('Failed to load customers');
-    } finally {
-      setLoadingCustomers(false);
-    }
-  }, []);
+  // FETCH PENDING CHALLANS
+  useEffect(() => {
+    fetch(`${API_BASE_URL}/api/challans`)
+      .then(r => r.json())
+      .then(data => setPendingChallans(data || []))
+      .catch(() => setPendingChallans([]));
+  }, [success]);
 
-  useEffect(() => { fetchGodowns(); }, [fetchGodowns]);
+  // LOAD GODOWNS + CUSTOMERS ON MOUNT
+  useEffect(() => {
+    fetchGodowns();
+
+    const loadCustomers = async () => {
+      const cust = await fetchCustomers();
+      setCustomers(cust);
+    };
+    loadCustomers();
+  }, [fetchGodowns]);
+
   useEffect(() => { fetchCustomers(); }, [fetchCustomers]);
 
-  useEffect(() => {
-    if (selectedCustomer) {
-      const cust = selectedCustomer.value;
-      setCustomer({
-        name: cust.name || '',
-        address: cust.address || '',
-        gstin: cust.gstin || '',
-        lr_number: cust.lr_number || '',
-        agent_name: cust.agent_name || '',
-        from: cust.from || '',
-        to: cust.to || '',
-        through: cust.through || ''
-      });
-    }
-  }, [selectedCustomer]);
-
+  // LOAD STOCK WHEN GODOWN CHANGES
   useEffect(() => {
     if (selectedGodown) {
       setLoadingStock(true);
       fetch(`${API_BASE_URL}/api/godown/stock/${selectedGodown.value}`)
-        .then(res => res.ok ? res.json() : Promise.reject())
+        .then(r => r.json())
         .then(data => {
           const enriched = data.map(item => ({
             ...item,
@@ -126,231 +148,203 @@ export default function Booking() {
     }
   }, [selectedGodown]);
 
+  // AUTO-FILL CUSTOMER ON SELECT
   useEffect(() => {
-    const term = godownSearchQuery.trim().toLowerCase();
-    if (!term) {
-      setFilteredStock(stock);
-    } else {
-      setFilteredStock(stock.filter(s =>
-        s.productname.toLowerCase().includes(term) ||
-        s.brand.toLowerCase().includes(term)
-      ));
+    if (selectedCustomer) {
+      const cust = selectedCustomer.value;
+      setCustomer({
+        name: cust.name || '',
+        address: cust.address || '',
+        gstin: cust.gstin || '',
+        lr_number: cust.lr_number || '',
+        agent_name: cust.agent_name || '',
+        from: cust.from || '',
+        to: cust.to || '',
+        through: cust.through || ''
+      });
     }
-  }, [godownSearchQuery, stock]);
+  }, [selectedCustomer]);
 
-  // Fixed: Now uses `rate_per_box` instead of `wprice`
+  // GLOBAL SEARCH
   useEffect(() => {
     const delay = setTimeout(() => {
       if (searchQuery.trim().length >= 2) {
         setLoadingGlobalSearch(true);
         fetch(`${API_BASE_URL}/api/search/global?name=${encodeURIComponent(searchQuery)}`)
-          .then(r => r.ok ? r.json() : [])
+          .then(r => r.json())
           .then(data => data.map(p => ({
+            ...p,
             id: Number(p.id),
-            product_type: p.product_type,
-            productname: p.productname,
-            brand: p.brand,
-            per_case: p.per_case || 1,
-            current_cases: p.current_cases || 0,
-            rate_per_box: parseFloat(p.rate_per_box) || 0,  // FIXED: Use rate_per_box
-            godown_name: p.godown_name,
-            godown_id: Number(p.godown_id),
+            rate_per_box: parseFloat(p.rate_per_box) || 0,
             shortGodown: shortenGodownName(p.godown_name)
           })))
-          .then(products => {
-            setGlobalProducts(products);
-            setHighlightedIndex(products.length > 0 ? 0 : -1);
-          })
+          .then(setGlobalProducts)
           .catch(() => setGlobalProducts([]))
           .finally(() => setLoadingGlobalSearch(false));
       } else {
         setGlobalProducts([]);
-        setHighlightedIndex(-1);
       }
     }, 400);
-
     return () => clearTimeout(delay);
   }, [searchQuery]);
 
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (globalProducts.length === 0) return;
-      if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        setHighlightedIndex(prev => (prev + 1) % globalProducts.length);
-      } else if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        setHighlightedIndex(prev => (prev - 1 + globalProducts.length) % globalProducts.length);
-      } else if (e.key === 'Enter' && highlightedIndex >= 0) {
-        e.preventDefault();
-        addGlobalProduct(globalProducts[highlightedIndex]);
-      } else if (e.key === 'Escape') {
-        setSearchQuery('');
-        setGlobalProducts([]);
-        setHighlightedIndex(-1);
-      }
-    };
-
-    const input = searchInputRef.current;
-    if (input) input.addEventListener('keydown', handleKeyDown);
-    return () => {
-      if (input) input.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [globalProducts, highlightedIndex]);
-
-  const addGlobalProduct = (product) => {
-    if (cart.some(i => i.id === product.id && i.godown === product.shortGodown)) {
-      return setError('Product from this godown already in cart');
+  const addGlobalProduct = (p) => {
+    if (cart.some(i => i.id === p.id)) {
+      setError('Item already in cart');
+      return;
     }
-
-    const godownOption = godowns.find(g => g.value === product.godown_id);
-    if (!godownOption) return setError('Godown not found');
-
-    if (!selectedGodown || selectedGodown.value !== product.godown_id) {
-      setSelectedGodown({ ...godownOption, isAutoSelected: true });
-    }
-
     setCart(prev => [...prev, {
-      id: product.id,
-      product_type: product.product_type,
-      productname: product.productname,
-      brand: product.brand,
-      per_case: product.per_case,
-      current_cases: product.current_cases,
+      ...p,
       cases: 1,
       discount: 0,
-      godown: product.shortGodown,
-      rate_per_box: product.rate_per_box  // Correct rate used
+      godown: p.shortGodown,
+      per_case: p.per_case || 1,
+      current_cases: p.current_cases || 0
     }]);
-
     setSearchQuery('');
     setGlobalProducts([]);
-    setHighlightedIndex(-1);
-    setSuccess(`Added: ${product.productname} (${product.shortGodown})`);
-    setTimeout(() => setSuccess(''), 2000);
-    setTimeout(() => searchInputRef.current?.focus(), 100);
   };
 
-  const addToCart = (item) => {
-    setCart(prev => {
-      const exists = prev.find(i => i.id === item.id);
-      if (exists) {
-        if (exists.cases + 1 > item.current_cases) return prev;
-        return prev.map(i => i.id === item.id ? { ...i, cases: i.cases + 1 } : i);
-      }
-      const shortGodown = selectedGodown?.shortName || 'Unknown';
-      return [...prev, {
-        id: Number(item.id),
-        product_type: item.product_type,
-        productname: item.productname,
-        brand: item.brand,
-        per_case: item.per_case,
-        current_cases: item.current_cases,
-        cases: 1,
-        discount: 0,
-        godown: shortGodown,
-        rate_per_box: item.rate_per_box
-      }];
-    });
-  };
-
-  const updateCases = (idx, cases) => {
-    cases = Math.max(1, Math.min(cases || 1, cart[idx].current_cases));
-    setCart(prev => prev.map((i, index) => index === idx ? { ...i, cases } : i));
-  };
-
-  const updateDiscount = (idx, discount) => {
-    discount = Math.max(0, Math.min(100, discount || 0));
-    setCart(prev => prev.map((i, index) => index === idx ? { ...i, discount } : i));
+  const updateCases = (idx, val) => {
+    const maxCases = fromChallan ? 999999 : (cart[idx].current_cases || 999999);
+    const cases = Math.max(1, Math.min(val || 1, maxCases));
+    setCart(prev => prev.map((i, i2) => i2 === idx ? { ...i, cases } : i));
   };
 
   const removeFromCart = (idx) => setCart(prev => prev.filter((_, i) => i !== idx));
 
   const calculate = () => {
     let subtotal = 0, totalCases = 0;
-    cart.forEach(item => {
-      const qty = item.cases * item.per_case;
-      const amountBefore = qty * item.rate_per_box;
-      const discountAmt = amountBefore * (item.discount / 100);
-      const finalAmt = amountBefore - discountAmt;
-      subtotal += finalAmt;
-      totalCases += item.cases;
+    cart.forEach(i => {
+      const amt = i.cases * i.per_case * i.rate_per_box * (1 - (i.discount || 0) / 100);
+      subtotal += amt;
+      totalCases += i.cases;
     });
+    const packing = applyProcessingFee ? subtotal * (packingPercent / 100) : 0;
+    const extraTaxable = parseFloat(taxableValue) || 0;
+    const subtotalWithPacking = subtotal + packing;
+    const taxableBase = subtotalWithPacking + extraTaxable;
+    const discountAmt = taxableBase * (additionalDiscount / 100);
+    const net = taxableBase - discountAmt;
 
-    const packingCharges = applyProcessingFee ? subtotal * (packingPercent / 100) : 0;
-    const subtotalWithPacking = subtotal + packingCharges;
-    let taxableUsed = subtotalWithPacking;
-    if (taxableValue && !isNaN(taxableValue)) taxableUsed += parseFloat(taxableValue);
+    let cgst = 0, sgst = 0, igst = 0;
+    if (applyIGST) igst = net * 0.18;
+    else if (applyCGST && applySGST) { cgst = net * 0.09; sgst = net * 0.09; }
 
-    const addlDiscountAmt = taxableUsed * (additionalDiscount / 100);
-    const netBeforeRound = taxableUsed - addlDiscountAmt;
+    const totalTax = cgst + sgst + igst;
+    const grandTotal = Math.round(net + totalTax);
 
-    const cgstAmt = applyCGST ? netBeforeRound * 0.09 : 0;
-    const sgstAmt = applySGST ? netBeforeRound * 0.09 : 0;
-    const igstAmt = applyIGST ? netBeforeRound * 0.18 : 0;
-    const totalTax = cgstAmt + sgstAmt + igstAmt;
-    const grandTotal = Math.round(netBeforeRound + totalTax);
-    const roundOff = grandTotal - (netBeforeRound + totalTax);
-
-    return {
-      subtotal: subtotal.toFixed(2),
-      packingCharges: packingCharges.toFixed(2),
-      subtotalWithPacking: subtotalWithPacking.toFixed(2),
-      taxableUsed: taxableUsed.toFixed(2),
-      addlDiscountAmt: addlDiscountAmt.toFixed(2),
-      cgstAmt: cgstAmt.toFixed(2),
-      sgstAmt: sgstAmt.toFixed(2),
-      igstAmt: igstAmt.toFixed(2),
-      totalTax: totalTax.toFixed(2),
-      roundOff: roundOff.toFixed(2),
-      grandTotal: grandTotal.toFixed(2),
-      totalCases
+    return { 
+      subtotal: subtotal.toFixed(2), 
+      packing: packing.toFixed(2),
+      extraTaxable: extraTaxable.toFixed(2),
+      discountAmt: discountAmt.toFixed(2), 
+      cgst: cgst.toFixed(2), 
+      sgst: sgst.toFixed(2), 
+      igst: igst.toFixed(2), 
+      grandTotal, 
+      totalCases 
     };
   };
-
   const calc = calculate();
 
+  // LOAD CHALLAN → BILL
+  const handleLoadChallan = async (challan) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/challan/${challan.id}`);
+      if (!res.ok) throw new Error('Failed to load challan');
+      const fullChallan = await res.json();
+
+      setCustomer({
+        name: fullChallan.customer_name || '',
+        address: fullChallan.address || '',
+        gstin: fullChallan.gstin || '',
+        lr_number: fullChallan.lr_number || '',
+        agent_name: 'DIRECT',
+        from: fullChallan.from || 'SIVAKASI',
+        to: fullChallan.to || '',
+        through: fullChallan.through || ''
+      });
+
+      const items = Array.isArray(fullChallan.items) ? fullChallan.items : [];
+      const cartItems = items.map(item => ({
+        ...item,
+        id: item.id,
+        productname: item.productname,
+        brand: item.brand || '',
+        cases: Number(item.cases),
+        per_case: Number(item.per_case || 1),
+        rate_per_box: parseFloat(item.rate_per_box || 0),
+        discount: 0,
+        godown: item.godown || fullChallan.from || 'SIVAKASI',
+        current_cases: 999999
+      }));
+
+      setCart(cartItems);
+      setBillType('direct');
+      setFromChallan(true);
+      setChallanId(challan.id);
+
+      const matchedGodown = godowns.find(g => 
+        fullChallan.from?.toLowerCase().includes(g.label.toLowerCase()) ||
+        g.label.toLowerCase().includes(fullChallan.from?.toLowerCase())
+      );
+      if (matchedGodown) setSelectedGodown(matchedGodown);
+
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      setSuccess(`Challan ${challan.challan_number} loaded! Ready to generate bill.`);
+    } catch (err) {
+      setError(err.message || 'Failed to load challan');
+    }
+  };
+
   const submitBooking = async () => {
-    if (!customer.name || cart.length === 0 || !selectedGodown || !customer.from || !customer.to || !customer.through) {
-      return setError('Please fill all required fields');
+    if (!customer.name.trim() || cart.length === 0 || !customer.to.trim() || !customer.through.trim()) {
+      setError('Please fill all required fields');
+      return;
     }
 
     setLoading(true);
-    setError('');
-    setSuccess('');
+    setError(''); setSuccess('');
 
     const payload = {
       customer_name: customer.name,
       address: customer.address,
       gstin: customer.gstin,
       lr_number: customer.lr_number,
-      agent_name: customer.agent_name,
+      agent_name: customer.agent_name || 'DIRECT',
       from: customer.from,
       to: customer.to,
       through: customer.through,
       additional_discount: additionalDiscount,
       packing_percent: packingPercent,
       taxable_value: taxableValue ? parseFloat(taxableValue) : null,
-      stock_from: selectedGodown.shortName,
+      stock_from: selectedGodown?.shortName || customer.from,
       apply_processing_fee: applyProcessingFee,
       apply_cgst: applyCGST,
       apply_sgst: applySGST,
       apply_igst: applyIGST,
+      from_challan: fromChallan,
+      challan_id: challanId,
       items: cart.map(i => ({
         id: i.id,
-        product_type: i.product_type,
         productname: i.productname,
         brand: i.brand,
         cases: i.cases,
         per_case: i.per_case,
-        discount_percent: i.discount,
+        discount_percent: i.discount || 0,
         godown: i.godown,
         rate_per_box: i.rate_per_box
-      }))
+      })),
+      is_direct_bill: billType === 'direct'
     };
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/booking`, {
+      const endpoint = billType === 'direct' 
+        ? `${API_BASE_URL}/api/booking/direct` 
+        : `${API_BASE_URL}/api/booking`;
+
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -359,52 +353,86 @@ export default function Booking() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Failed to generate bill');
 
-      setLoadingPDF(true);
       const pdfRes = await fetch(`${API_BASE_URL}${data.pdfPath}`);
       const blob = await pdfRes.blob();
-      const blobUrl = URL.createObjectURL(blob);
-      setPdfBlobUrl(blobUrl);
+      const url = URL.createObjectURL(blob);
+      setPdfBlobUrl(url);
       setBillNumber(data.bill_number);
       setShowPDFModal(true);
-      setSuccess('Bill Generated Successfully!');
 
-      // Reset form
+      setSuccess(`Bill Created: ${data.bill_number}`);
       setCart([]);
-      setCustomer({ name: '', address: '', gstin: '', lr_number: '', agent_name: '', from: '', to: '', through: '' });
+      setCustomer(prev => ({ ...prev, name: '', to: '', through: '' }));
       setSelectedCustomer(null);
       setAdditionalDiscount(0);
       setTaxableValue('');
-      setApplyProcessingFee(true);
       setApplyCGST(false); setApplySGST(false); setApplyIGST(false);
+      setFromChallan(false);
+      setChallanId(null);
 
     } catch (err) {
       setError(err.message || 'Something went wrong');
     } finally {
       setLoading(false);
-      setLoadingPDF(false);
     }
   };
 
-  useEffect(() => {
-    return () => {
-      if (pdfBlobUrl) URL.revokeObjectURL(pdfBlobUrl);
-    };
-  }, [pdfBlobUrl]);
-
   return (
-    <div className="flex min-h-screen bg-gray-100 dark:bg-gray-900">
+    <div className="flex min-h-screen bg-gray-100 dark:bg-gray-900 text-black dark:text-white">
       <Sidebar />
       <Logout />
-      <div className="flex-1 p-4 pt-16 overflow-auto">
-        <div className="max-w-5xl mx-auto">
-          <h2 className="text-lg mobile:text-xl font-bold text-center text-gray-900 dark:text-gray-100 mb-4">Create Estimate Bill</h2>
 
-          {error && <div className="mb-3 p-2 bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-200 rounded text-xs mobile:text-sm text-center">{error}</div>}
-          {success && <div className="mb-3 p-2 bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-200 rounded text-xs mobile:text-sm text-center">{success}</div>}
+      <div className="flex-1 p-4 pt-20 overflow-auto">
+        <div className="max-w-7xl mx-auto space-y-8">
 
-          <div className="space-y-6">
+          {/* Pending Challans */}
+          {pendingChallans.length > 0 && (
+            <div className="bg-yellow-50 dark:bg-yellow-900/30 border-2 border-yellow-500 rounded-2xl p-6 shadow-xl">
+              <h3 className="text-xl font-bold text-center mb-4 text-yellow-800 dark:text-yellow-300">
+                Pending Delivery Challans ({pendingChallans.length})
+              </h3>
+              <div className="grid gap-4">
+                {pendingChallans.map(ch => (
+                  <div key={ch.id} className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow hover:shadow-lg transition border">
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className="font-bold text-lg">{ch.challan_number}</p>
+                          <span className="text-xs bg-gray-200 dark:bg-gray-700 px-2 py-1 rounded flex items-center gap-1">
+                            <FaUser className="text-xs" /> {ch.created_by || 'Admin'}
+                          </span>
+                        </div>
+                        <p className="font-medium">{ch.customer_name}</p>
+                        <p className="text-sm text-gray-600 dark:text-gray-400">
+                          To: <strong>{ch.to}</strong> • {new Date(ch.created_at).toLocaleDateString('en-IN')}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => handleLoadChallan(ch)}
+                        className="bg-green-600 hover:bg-green-700 text-white px-5 py-2.5 rounded-lg font-medium text-md transition shadow"
+                      >
+                        Generate Bill
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
-            {/* Customer Selection */}
+          <h2 className="text-3xl font-bold text-center">
+            {billType === 'direct' ? 'Create Direct Bill' : 'Create Estimate Bill'}
+            {fromChallan && <span className="block text-lg text-green-600 font-bold">From Pending Challan (Stock Check Bypassed)</span>}
+          </h2>
+
+          {error && <div className="p-4 bg-red-100 dark:bg-red-900/50 border border-red-500 rounded-xl text-red-700 dark:text-red-300 text-center font-medium">{error}</div>}
+          {success && <div className="p-4 bg-green-100 dark:bg-green-900/50 border border-green-500 rounded-xl text-green-700 dark:text-green-300 text-center font-medium flex items-center justify-center gap-2">
+            <FaCheckCircle /> {success}
+          </div>}
+
+          <div className="space-y-8">
+
+            {/* Customer Selection - FIXED */}
             <div className="bg-white dark:bg-gray-800 p-3 mobile:p-4 rounded-lg shadow">
               <label className="block font-medium mb-1 text-black dark:text-white text-xs mobile:text-sm">Select Existing Customer (optional)</label>
               {loadingCustomers ? (
@@ -416,51 +444,48 @@ export default function Booking() {
                   onChange={setSelectedCustomer}
                   placeholder="Search / Select Customer"
                   isClearable
-                  className="text-xs mobile:text-sm"
+                  className="text-xs mobile:text-sm text-black"
                   styles={{ control: (base) => ({ ...base, ...styles.input, border: '1px solid rgba(2,132,199,0.3)', boxShadow: 'none', '&:hover': { borderColor: 'rgba(2,132,199,0.5)' } }) }}
                 />
               )}
             </div>
 
             {/* Customer Details */}
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden mb-4">
-              <button onClick={() => setIsCustomerDetailsOpen(!isCustomerDetailsOpen)} className="w-full p-3 mobile:p-4 flex justify-between items-center text-left font-semibold text-black dark:text-white bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 transition">
-                <span>Customer Details</span>
-                {isCustomerDetailsOpen ? <FaChevronUp /> : <FaChevronDown />}
+            <div className={cardClass}>
+              <button onClick={() => setIsCustomerDetailsOpen(!isCustomerDetailsOpen)} className="w-full p-6 flex justify-between items-center text-lg font-bold bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-t-xl">
+                Customer Details {isCustomerDetailsOpen ? <FaChevronUp /> : <FaChevronDown />}
               </button>
               {isCustomerDetailsOpen && (
-                <div className="p-3 mobile:p-4">
-                  <div className="grid grid-cols-1 mobile:grid-cols-2 gap-2 mobile:gap-3 text-xs mobile:text-sm">
-                    <input placeholder="Party Name *" value={customer.name} onChange={e => setCustomer({ ...customer, name: e.target.value })} className="rounded px-2 py-1.5 border" style={styles.input} />
-                    <input placeholder="Address" value={customer.address} onChange={e => setCustomer({ ...customer, address: e.target.value })} className="rounded px-2 py-1.5 border" style={styles.input} />
-                    <input placeholder="GSTIN" value={customer.gstin} onChange={e => setCustomer({ ...customer, gstin: e.target.value })} className="rounded px-2 py-1.5 border" style={styles.input} />
-                    <input placeholder="L.R. Number" value={customer.lr_number} onChange={e => setCustomer({ ...customer, lr_number: e.target.value })} className="rounded px-2 py-1.5 border" style={styles.input} />
-                    <input placeholder="Agent Name" value={customer.agent_name} onChange={e => setCustomer({ ...customer, agent_name: e.target.value })} className="rounded px-2 py-1.5 border" style={styles.input} />
-                    <input placeholder="From (e.g. SIVAKASI) *" value={customer.from} onChange={e => setCustomer({ ...customer, from: e.target.value })} className="rounded px-2 py-1.5 border" style={styles.input} />
-                    <input placeholder="To (e.g. BOMMIDI) *" value={customer.to} onChange={e => setCustomer({ ...customer, to: e.target.value })} className="rounded px-2 py-1.5 border" style={styles.input} />
-                    <input placeholder="Through (e.g. ABI TPT) *" value={customer.through} onChange={e => setCustomer({ ...customer, through: e.target.value })} className="rounded px-2 py-1.5 border" style={styles.input} />
-                  </div>
+                <div className="p-6 grid grid-cols-2 gap-6">
+                  <input placeholder="Party Name *" value={customer.name} onChange={e => setCustomer({...customer, name: e.target.value})} className={inputClass} />
+                  <input placeholder="Address" value={customer.address} onChange={e => setCustomer({...customer, address: e.target.value})} className={inputClass} />
+                  <input placeholder="GSTIN" value={customer.gstin} onChange={e => setCustomer({...customer, gstin: e.target.value})} className={inputClass} />
+                  <input placeholder="L.R. Number" value={customer.lr_number} onChange={e => setCustomer({...customer, lr_number: e.target.value})} className={inputClass} />
+                  <input placeholder="Agent Name" value={customer.agent_name} onChange={e => setCustomer({...customer, agent_name: e.target.value})} className={inputClass} />
+                  <input placeholder="From" value={customer.from} onChange={e => setCustomer({...customer, from: e.target.value})} className={inputClass} />
+                  <input placeholder="To *" value={customer.to} onChange={e => setCustomer({...customer, to: e.target.value})} className={inputClass} />
+                  <input placeholder="Through *" value={customer.through} onChange={e => setCustomer({...customer, through: e.target.value})} className={inputClass} />
                 </div>
               )}
             </div>
 
             {/* Cart Summary */}
             {cart.length > 0 && (
-              <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-3 mobile:p-4 mb-4">
-                <h3 className="font-semibold text-sm mobile:text-base mb-3 text-black dark:text-white">Cart Items</h3>
+              <div className={`${cardClass} p-8`}>
+                <h3 className={`text-xl font-bold mb-6 ${textClass}`}>Cart Items ({cart.length})</h3>
                 <div className="overflow-x-auto">
-                  <table className="w-full text-xs mobile:text-sm border-collapse">
+                  <table className="w-full text-sm border-collapse">
                     <thead>
-                      <tr className="border-b bg-gray-50 dark:bg-gray-700 text-black dark:text-white">
-                        <th className="p-1 mobile:p-2 border">S.No</th>
-                        <th className="p-1 mobile:p-2 border">Product</th>
-                        <th className="p-1 mobile:p-2 border">Cases</th>
-                        <th className="p-1 mobile:p-2 border">Per</th>
-                        <th className="p-1 mobile:p-2 border">Qty</th>
-                        <th className="p-1 mobile:p-2 border">Rate</th>
-                        <th className="p-1 mobile:p-2 border">Amount</th>
-                        <th className="p-1 mobile:p-2 border">From</th>
-                        <th className="p-1 mobile:p-2 border"></th>
+                      <tr className="bg-gray-100 dark:bg-gray-700">
+                        <th className={`p-3 border ${tableText}`}>S.No</th>
+                        <th className={`p-3 border ${tableText}`}>Product</th>
+                        <th className={`p-3 border ${tableText}`}>Cases</th>
+                        <th className={`p-3 border ${tableText}`}>Per</th>
+                        <th className={`p-3 border ${tableText}`}>Qty</th>
+                        <th className={`p-3 border ${tableText}`}>Rate</th>
+                        <th className={`p-3 border ${tableText}`}>Amount</th>
+                        <th className={`p-3 border ${tableText}`}>From</th>
+                        <th className={`p-3 border ${tableText}`}></th>
                       </tr>
                     </thead>
                     <tbody>
@@ -470,19 +495,19 @@ export default function Booking() {
                         const discountAmt = amountBefore * (item.discount / 100);
                         const finalAmt = amountBefore - discountAmt;
                         return (
-                          <tr key={idx} className="border-b text-black dark:text-white">
-                            <td className="p-1 mobile:p-2 border text-center">{idx + 1}</td>
-                            <td className="p-1 mobile:p-2 border text-center truncate max-w-24 mobile:max-w-32">{item.productname}</td>
-                            <td className="p-1 mobile:p-2 border text-center">
-                              <input type="number" min="1" max={item.current_cases} value={item.cases} onChange={e => updateCases(idx, parseInt(e.target.value))} className="w-12 mobile:w-16 p-1 border rounded text-xs text-black" style={styles.input} />
+                          <tr key={idx} className="border-b dark:border-gray-700">
+                            <td className={`p-3 text-center ${tableText}`}>{idx + 1}</td>
+                            <td className={`p-3 ${tableText}`}>{item.productname}</td>
+                            <td className="p-3 text-center">
+                              <input type="number" min="1" max={item.current_cases} value={item.cases} onChange={e => updateCases(idx, parseInt(e.target.value) || 1)} className="w-20 p-2 border rounded dark:bg-gray-700" />
                             </td>
-                            <td className="p-1 mobile:p-2 border text-center">{item.per_case}</td>
-                            <td className="p-1 mobile:p-2 border text-center">{qty}</td>
-                            <td className="p-1 mobile:p-2 border text-center">₹{item.rate_per_box.toFixed(2)}</td>
-                            <td className="p-1 mobile:p-2 border text-center">₹{finalAmt.toFixed(2)}</td>
-                            <td className="p-1 mobile:p-2 border text-center">{item.godown}</td>
-                            <td className="p-1 mobile:p-2 border text-center">
-                              <button onClick={() => removeFromCart(idx)} className="text-red-600"><FaTrash className="h-3 w-3 mobile:h-4 mobile:w-4" /></button>
+                            <td className={`p-3 text-center ${tableText}`}>{item.per_case}</td>
+                            <td className={`p-3 text-center ${tableText}`}>{qty}</td>
+                            <td className={`p-3 text-center ${tableText}`}>₹{item.rate_per_box.toFixed(2)}</td>
+                            <td className={`p-3 text-center font-medium ${tableText}`}>₹{finalAmt.toFixed(2)}</td>
+                            <td className={`p-3 text-center ${tableText}`}>{item.godown}</td>
+                            <td className="p-3 text-center">
+                              <button onClick={() => removeFromCart(idx)} className="text-red-600 hover:text-red-800"><FaTrash /></button>
                             </td>
                           </tr>
                         );
@@ -491,83 +516,84 @@ export default function Booking() {
                   </table>
                 </div>
 
-                <div className="mt-4 grid grid-cols-1 mobile:grid-cols-2 gap-3 mobile:gap-4 text-xs mobile:text-sm text-black dark:text-white">
+                <div className="mt-8 grid md:grid-cols-2 gap-8 text-lg font-medium">
                   <div>
-                    <p className="font-bold">No. of Cases: {calc.totalCases}</p>
-                    <p>From: {customer.from || '-'}</p>
-                    <p>To: {customer.to || '-'}</p>
-                    <p>Through: {customer.through || '-'}</p>
+                    <p className="text-xl font-bold">Total Cases: {calc.totalCases}</p>
+                    <p>From: {customer.from}</p>
+                    <p>To: {customer.to}</p>
+                    <p>Through: {customer.through}</p>
                   </div>
-                  <div className="text-right space-y-1">
-                    <p>GOODS VALUE <span className="float-right">₹{calc.subtotal}</span></p>
-                    {applyProcessingFee && <p>PACKING @ {packingPercent}% <span className="float-right">₹{calc.packingCharges}</span></p>}
-                    {parseFloat(calc.addlDiscountAmt) > 0 && <p>SPECIAL DISCOUNT <span className="float-right">-₹{calc.addlDiscountAmt}</span></p>}
-                    {applyCGST && <p>CGST @ 9% <span className="float-right">₹{calc.cgstAmt}</span></p>}
-                    {applySGST && <p>SGST @ 9% <span className="float-right">₹{calc.sgstAmt}</span></p>}
-                    {applyIGST && <p>IGST @ 18% <span className="float-right">₹{calc.igstAmt}</span></p>}
-                    <p>TAXABLE VALUE <span className="float-right">₹{calc.taxableUsed}</span></p>
-                    <p>ROUND OFF <span className="float-right">₹{calc.roundOff}</span></p>
-                    <p className="font-bold text-green-600">NET AMOUNT <span className="float-right">₹{calc.grandTotal}</span></p>
+                  <div className="text-right space-y-2">
+                    <p>Goods Value <span className="float-right">₹{calc.subtotal}</span></p>
+                    {applyProcessingFee && <p>Packing @ {packingPercent}% <span className="float-right">₹{calc.packing}</span></p>}
+                    {parseFloat(taxableValue) > 0 && <p className="text-blue-600 font-bold">Extra Taxable Amount <span className="float-right">₹{calc.extraTaxable}</span></p>}
+                    {parseFloat(calc.discountAmt) > 0 && <p>Special Discount <span className="float-right text-red-600">-₹{calc.discountAmt}</span></p>}
+                    {applyCGST && <p>CGST @ 9% <span className="float-right">₹{calc.cgst}</span></p>}
+                    {applySGST && <p>SGST @ 9% <span className="float-right">₹{calc.sgst}</span></p>}
+                    {applyIGST && <p>IGST @ 18% <span className="float-right">₹{calc.igst}</span></p>}
+                    <p className="text-2xl font-bold text-green-600 dark:text-green-400 mt-4">
+                      NET AMOUNT <span className="float-right">₹{calc.grandTotal}</span>
+                    </p>
                   </div>
                 </div>
 
-                <div className="mt-4 grid grid-cols-1 mobile:grid-cols-3 gap-3 text-xs mobile:text-sm">
+                <div className="mt-8 flex flex-row gap-6">
                   <div>
-                    <label className="block font-medium mb-1 text-black dark:text-white">Additional Discount (%)</label>
-                    <input type="number" value={additionalDiscount} onChange={e => setAdditionalDiscount(parseFloat(e.target.value) || 0)} className="w-full rounded px-2 py-1.5 border" style={styles.input} />
+                    <label className={`block font-medium mb-2 ${textClass}`}>Additional Discount (%)</label>
+                    <input type="number" value={additionalDiscount} onChange={e => setAdditionalDiscount(parseFloat(e.target.value) || 0)} className={inputClass} />
                   </div>
                   <div>
-                    <label className="flex items-center gap-2 font-medium text-black dark:text-white">
-                      <input type="checkbox" checked={applyProcessingFee} onChange={e => setApplyProcessingFee(e.target.checked)} className="w-4 h-4" />
+                    <label className={`flex items-center gap-3 font-medium ${textClass}`}>
+                      <input type="checkbox" checked={applyProcessingFee} onChange={e => setApplyProcessingFee(e.target.checked)} className="w-5 h-5" />
                       Packing @ {packingPercent}%
                     </label>
-                    <input type="number" step="0.1" value={packingPercent} onChange={e => setPackingPercent(parseFloat(e.target.value) || 0)} className="w-full rounded px-2 py-1.5 border mt-1" style={styles.input} disabled={!applyProcessingFee} />
+                    <input type="number" step="0.1" value={packingPercent} onChange={e => setPackingPercent(parseFloat(e.target.value) || 0)} className={`${inputClass} mt-2`} disabled={!applyProcessingFee} />
                   </div>
                   <div>
-                    <label className="block font-medium mb-1 text-black dark:text-white">Additional Taxable Amount</label>
-                    <input type="number" placeholder="e.g. 1000" value={taxableValue} onChange={e => setTaxableValue(e.target.value)} className="w-full rounded px-2 py-1.5 border" style={styles.input} />
+                    <label className={`block font-medium mb-2 ${textClass}`}>Extra Taxable Amount</label>
+                    <input type="number" placeholder="e.g. 1000" value={taxableValue} onChange={e => setTaxableValue(e.target.value)} className={inputClass} />
                   </div>
                 </div>
 
-                <div className="mt-3 flex gap-4 text-md text-white mobile:text-sm">
-                  <label className="flex items-center gap-2"><input type="checkbox" checked={applyCGST} onChange={e => setApplyCGST(e.target.checked)} className="w-4 h-4" /> CGST 9%</label>
-                  <label className="flex items-center gap-2"><input type="checkbox" checked={applySGST} onChange={e => setApplySGST(e.target.checked)} className="w-4 h-4" /> SGST 9%</label>
-                  <label className="flex items-center gap-2"><input type="checkbox" checked={applyIGST} onChange={e => setApplyIGST(e.target.checked)} className="w-4 h-4" /> IGST 18%</label>
+                <div className="mt-6 flex gap-8 text-md">
+                  <label className={`flex items-center gap-3 ${textClass}`}><input type="checkbox" checked={applyCGST} onChange={e => setApplyCGST(e.target.checked)} className="w-5 h-5" /> CGST 9%</label>
+                  <label className={`flex items-center gap-3 ${textClass}`}><input type="checkbox" checked={applySGST} onChange={e => setApplySGST(e.target.checked)} className="w-5 h-5" /> SGST 9%</label>
+                  <label className={`flex items-center gap-3 ${textClass}`}><input type="checkbox" checked={applyIGST} onChange={e => setApplyIGST(e.target.checked)} className="w-5 h-5" /> IGST 18%</label>
                 </div>
               </div>
             )}
 
             {/* Global Search */}
-            <div className="bg-white dark:bg-gray-800 p-3 mobile:p-4 rounded-lg shadow">
-              <label className="block font-medium mb-1 text-black dark:text-white text-xs mobile:text-sm">Search Products (All Godowns)</label>
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg">
+              <label className="block font-bold mb-3 text-black dark:text-white text-lg">Search Products (All Godowns)</label>
               <div className="relative">
-                <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 h-4 w-4" />
+                <FaSearch className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-500 text-xl" />
                 <input
                   ref={searchInputRef}
                   type="text"
                   placeholder="Type product name (min 2 chars)..."
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-3 py-2 border rounded text-xs mobile:text-sm"
-                  style={styles.input}
+                  className="w-full pl-12 pr-6 py-4 text-lg border-2 rounded-xl focus:outline-none focus:border-blue-500"
                 />
               </div>
-              {loadingGlobalSearch && <div className="mt-2 text-xs text-blue-600">Searching...</div>}
+              {loadingGlobalSearch && <div className="mt-4 text-blue-600 font-medium">Searching...</div>}
               {globalProducts.length > 0 && (
-                <div className="mt-2 max-h-48 overflow-y-auto border rounded bg-gray-50 dark:bg-gray-700 p-2">
+                <div className="mt-4 max-h-80 overflow-y-auto border-2 rounded-xl bg-gray-50 dark:bg-gray-700 p-4">
                   {globalProducts.map((p, idx) => (
                     <div
                       key={p.id}
-                      className={`flex justify-between items-center p-2 border-b text-xs cursor-pointer transition ${idx === highlightedIndex ? 'bg-blue-100 dark:bg-blue-900' : 'hover:bg-blue-50 dark:hover:bg-blue-900'}`}
                       onClick={() => addGlobalProduct(p)}
+                      className="p-4 border-b last:border-b-0 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900 transition"
                     >
-                      <div>
-                        <span className="font-medium text-sm text-black dark:text-white">{p.productname}</span>{' '}
-                        <span className="text-black dark:text-white">({p.shortGodown})</span>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-green-600">₹{p.rate_per_box.toFixed(2)}/box</p>
-                        <p className="text-black dark:text-white">Cases: {p.current_cases}</p>
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <span className="font-bold text-lg">{p.productname}</span> <span className="text-gray-500">({p.shortGodown})</span>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-green-600 font-bold text-xl">₹{p.rate_per_box.toFixed(2)}/box</p>
+                          <p className="text-sm">Cases: {p.current_cases}</p>
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -576,62 +602,53 @@ export default function Booking() {
             </div>
 
             {/* Godown Selection */}
-            <div className="bg-white dark:bg-gray-800 p-3 mobile:p-4 rounded-lg shadow">
-              <label className="block font-medium mb-1 text-black dark:text-white text-xs mobile:text-sm">
-                Selected Godown: {selectedGodown ? selectedGodown.label : 'None'}
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg">
+              <label className="block font-bold mb-3 text-black dark:text-white text-lg">
+                Selected Godown: <span className="text-blue-600">{selectedGodown ? selectedGodown.label : 'None'}</span>
               </label>
               {loadingGodowns ? (
-                <div className="flex items-center justify-center py-3">
-                  <FaSpinner className="animate-spin h-4 w-4 mobile:h-5 mobile:w-5 text-blue-600 mr-2" />
-                  <span className="text-xs mobile:text-sm text-gray-600 dark:text-gray-400">Loading...</span>
-                </div>
+                <div className="flex items-center gap-3 text-lg"><FaSpinner className="animate-spin" /> Loading godowns...</div>
               ) : (
                 <Select
                   options={godowns}
                   value={selectedGodown}
-                  onChange={(opt) => setSelectedGodown(opt ? { ...opt, isAutoSelected: false } : null)}
-                  placeholder="Choose Godown (auto-selected on add)"
+                  onChange={setSelectedGodown}
+                  placeholder="Choose Godown"
                   isClearable
-                  className="text-xs mobile:text-sm"
-                  styles={{ control: (base) => ({ ...base, ...styles.input, border: '1px solid rgba(2,132,199,0.3)', boxShadow: 'none', '&:hover': { borderColor: 'rgba(2,132,199,0.5)' } }) }}
+                  className="text-black"
                 />
               )}
             </div>
 
             {/* Stock Grid */}
-            {selectedGodown && selectedGodown.isAutoSelected !== true && (
-              <div className="bg-white dark:bg-gray-800 p-3 mobile:p-4 rounded-lg shadow">
-                <h3 className="text-sm mobile:text-md font-semibold mb-3 text-black dark:text-white">Available Stock</h3>
+            {selectedGodown && (
+              <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg">
+                <h3 className="text-2xl font-bold mb-6 text-black dark:text-white">Available Stock in {selectedGodown.label}</h3>
                 {loadingStock ? (
-                  <div className="flex items-center justify-center py-6">
-                    <FaSpinner className="animate-spin h-5 w-5 mobile:h-6 mobile:w-6 text-blue-600 mr-2" />
-                    <span className="text-xs mobile:text-sm text-gray-600 dark:text-gray-400">Loading...</span>
-                  </div>
+                  <div className="text-center py-16"><FaSpinner className="animate-spin text-5xl text-blue-600" /></div>
                 ) : filteredStock.length > 0 ? (
-                  <div className="grid grid-cols-2 mobile:grid-cols-3 lg:grid-cols-4 gap-2 mobile:gap-3 text-black dark:text-white">
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
                     {filteredStock.map(item => (
-                      <div key={item.id} className="border rounded p-2 text-xs mobile:text-sm bg-gray-50 dark:bg-gray-700">
-                        <p className="font-medium truncate">{item.productname}</p>
-                        <p>Type: {capitalize(item.product_type)}</p>
-                        <p>Brand: {capitalize(item.brand)}</p>
-                        <p>Cases: {item.current_cases}</p>
-                        <p>Per Case: {item.per_case}</p>
-                        <p className="text-green-600 font-medium">₹{item.rate_per_box.toFixed(2)}/box</p>
+                      <div key={item.id} className="border-2 rounded-xl p-6 bg-gray-50 dark:bg-gray-700 hover:shadow-2xl transition">
+                        <p className="font-bold text-lg truncate">{item.productname}</p>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Cases: {item.current_cases}</p>
+                        <p className="text-sm text-gray-600 dark:text-gray-400">Per Case: {item.per_case}</p>
+                        <p className="text-green-600 font-bold text-2xl mt-3">₹{item.rate_per_box.toFixed(2)}/box</p>
                         <button
-                          onClick={() => addToCart(item)}
+                          onClick={() => {
+                            if (cart.some(i => i.id === item.id)) return setError('Already in cart');
+                            setCart(prev => [...prev, { ...item, cases: 1, discount: 0, godown: selectedGodown.shortName }]);
+                          }}
                           disabled={item.current_cases <= 0}
-                          className="mt-2 w-full text-white text-xs mobile:text-sm py-1 rounded flex items-center justify-center gap-1 disabled:opacity-50"
-                          style={styles.button}
+                          className="mt-4 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-bold rounded-xl px-6 py-3 w-full text-md transition flex items-center justify-center gap-2"
                         >
-                          <FaPlus className="h-3 w-3" /> Add
+                          <FaPlus /> Add to Cart
                         </button>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-center text-gray-500 dark:text-gray-400 py-4 text-xs mobile:text-sm">
-                    {godownSearchQuery ? 'No products match your search.' : 'No stock available.'}
-                  </p>
+                  <p className="text-center text-gray-500 py-16 text-xl">No stock available in this godown.</p>
                 )}
               </div>
             )}
@@ -640,13 +657,16 @@ export default function Booking() {
             <button
               onClick={submitBooking}
               disabled={loading || cart.length === 0}
-              className="w-full py-3 rounded text-white font-medium text-sm mobile:text-base flex items-center justify-center gap-2 disabled:opacity-50"
-              style={styles.button}
+              className={`w-full py-5 text-xl font-bold rounded-xl shadow-lg transition-all ${
+                billType === 'direct'
+                  ? 'bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700'
+                  : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700'
+              } text-white disabled:opacity-50`}
             >
               {loading ? (
-                <>Generating... <FaSpinner className="animate-spin h-4 w-4 mobile:h-5 mobile:w-5" /></>
+                <>Generating... <FaSpinner className="inline ml-3 animate-spin" /></>
               ) : (
-                <>Generate Estimate Bill <FaFilePdf className="h-4 w-4 mobile:h-5 mobile:w-5" /></>
+                <>Generate Bill <FaFilePdf className="inline ml-3" /></>
               )}
             </button>
           </div>
@@ -654,43 +674,22 @@ export default function Booking() {
       </div>
 
       {/* PDF Modal */}
-      <Modal
-        isOpen={showPDFModal}
-        onRequestClose={() => setShowPDFModal(false)}
-        className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-4xl w-full mx-4 my-8 outline-none overflow-hidden"
-        overlayClassName="fixed inset-0 bg-black/50 bg-opacity-60 flex items-center justify-center z-50 p-4"
-        closeTimeoutMS={200}
-      >
+      <Modal isOpen={showPDFModal} onRequestClose={() => setShowPDFModal(false)} className="bg-white dark:bg-gray-800 rounded-2xl shadow-4xl max-w-5xl h-[80%] w-full mx-4 my-8 outline-none overflow-hidden" overlayClassName="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
         <div className="flex flex-col h-full max-h-screen">
-          <div className="flex justify-between items-center p-4 border-b dark:border-gray-700">
-            <h2 className="text-lg mobile:text-xl font-bold text-gray-900 dark:text-gray-100">Bill: {billNumber}</h2>
-            <div className="flex gap-2">
-              <a href={pdfBlobUrl} download={`${billNumber}.pdf`} className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded text-sm flex items-center gap-1 transition">
-                <FaDownload className="h-3 w-3" /> Download
+          <div className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white p-6 flex justify-between items-center">
+            <h2 className="text-2xl font-bold">Bill: {billNumber}</h2>
+            <div className="flex gap-4">
+              <a href={pdfBlobUrl} download={`${billNumber}.pdf`} className="bg-green-600 hover:bg-green-700 px-6 py-3 rounded-lg flex items-center gap-3 font-bold text-md">
+                <FaDownload /> Download
               </a>
-              <button onClick={() => setShowPDFModal(false)} className="px-3 py-1.5 bg-gray-600 hover:bg-gray-700 text-white rounded text-sm flex items-center gap-1 transition">
-                <FaTimes className="h-3 w-3" /> Close
+              <button onClick={() => setShowPDFModal(false)} className="bg-gray-600 hover:bg-gray-700 px-6 py-3 rounded-lg flex items-center gap-3 font-bold text-md">
+                <FaTimes /> Close
               </button>
             </div>
           </div>
-          <div className="flex-1 bg-gray-50 dark:bg-gray-900 p-2 mobile:p-4 overflow-auto">
-            {loadingPDF ? (
-              <div className="flex items-center justify-center h-64">
-                <FaSpinner className="animate-spin h-8 w-8 text-blue-600" />
-              </div>
-            ) : pdfBlobUrl ? (
-              <embed src={pdfBlobUrl} type="application/pdf" className="w-full h-full min-h-96 border-0" />
-            ) : (
-              <p className="text-center text-red-600">Failed to load PDF</p>
-            )}
+          <div className="flex-1 bg-gray-100 dark:bg-gray-900 p-4">
+            <embed src={pdfBlobUrl} type="application/pdf" className="w-full h-full rounded" />
           </div>
-          {pdfBlobUrl && (
-            <div className="p-2 text-center text-xs text-gray-500">
-              <a href={pdfBlobUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">
-                Open in new tab
-              </a>
-            </div>
-          )}
         </div>
       </Modal>
     </div>

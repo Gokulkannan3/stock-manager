@@ -16,6 +16,7 @@ import Ledger from './Admin/Ledger/Ledger'
 import Admin from './Admin/Ledger/Admin'
 import Dispatch from './Admin/Ledger/Dispatchs'
 import Pendingpayments from './Admin/Ledger/Pendingpayments'
+import Delivery from './Admin/Delivery/Delivery';
 
 const AllRoutes = () => {
   return (
@@ -31,6 +32,7 @@ const AllRoutes = () => {
         <Route path="/viewstock" element={<ViewStock />} />
         <Route path="/view-stocks/:godownId" element={<GodownDetail />} />
         <Route path="/search" element={<Search />} />
+        <Route path="/delivery" element={<Delivery />} />
       </Route>
 
       {/* Admin only */}

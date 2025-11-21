@@ -26,6 +26,7 @@ export default function Sidebar() {
     search: ["admin", "agent", "worker"].includes(userType),
     analytics: userType === "admin",
     profile: userType === "admin",
+    delivey: ["admin", "agent", "worker"].includes(userType),
   };
 
   // ────── Navigation Items ──────
@@ -68,11 +69,11 @@ export default function Sidebar() {
         { name: "Payments", path: "/payments", icon: <FaCreditCard className="mr-2" /> },
       ],
     },
+    { name: "Delivery Challan", path: "/delivery", icon: <FaTruck className="mr-2" />, allowed: can.delivey },
     { name: "Overall Stocks", path: "/analysis", icon: <FaChartBar className="mr-2" />, allowed: can.analysis },
     { name: "Search product", path: "/search", icon: <FaSearch className="mr-2" />, allowed: can.search },
     { name: "Analytics", path: "/analytics", icon: <FaChartLine className="mr-2" />, allowed: can.analytics },
     { name: "Profile", path: "/profile", icon: <FaUser className="mr-2" />, allowed: can.profile },
-    { name: 'Retail', path: '/direct-enquiry', icon: <FaBook className="mr-2" /> },
   ];
 
   // ────── Toggle Functions ──────
