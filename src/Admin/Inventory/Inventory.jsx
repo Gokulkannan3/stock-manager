@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Sidebar from '../Sidebar/Sidebar';
 import Logout from '../Logout';
 import { API_BASE_URL } from '../../../Config';
-import { FaPlus, FaEdit, FaTrash } from 'react-icons/fa';
+import { FaPlus, FaEdit, FaTrash, FaChevronDown, FaChevronUp } from 'react-icons/fa';
 import Modal from 'react-modal';
 
 Modal.setAppElement('#root');
@@ -27,6 +27,10 @@ export default function Inventory() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const brandsPerPage = 10;
+
+  // NEW: Collapsible states (closed by default)
+  const [isBrandSectionOpen, setIsBrandSectionOpen] = useState(false);
+  const [isTypeSectionOpen, setIsTypeSectionOpen] = useState(false);
 
   // Fetch Data
   const fetchData = async () => {
@@ -65,6 +69,7 @@ export default function Inventory() {
       });
       setNewProductType('');
       setSuccess('Product type created!');
+      setIsTypeSectionOpen(false); // Close after success
       fetchData();
     } catch (err) {
       setError('Failed to create type');
@@ -83,8 +88,10 @@ export default function Inventory() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ brand: formatted, agent_name: newAgentName.trim() || null })
       });
-      setNewBrand(''); setNewAgentName('');
+      setNewBrand(''); 
+      setNewAgentName('');
       setSuccess('Brand created!');
+      setIsBrandSectionOpen(false); // Close after success
       fetchData();
     } catch (err) {
       setError('Failed to create brand');
@@ -175,29 +182,17 @@ export default function Inventory() {
           {error && <div className="mb-4 p-4 bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300 rounded-lg text-center font-medium text-sm mobile:text-xs">{error}</div>}
           {success && <div className="mb-4 p-4 bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300 rounded-lg text-center font-medium text-sm mobile:text-xs">{success}</div>}
 
-          {/* CREATE PRODUCT TYPE & BRAND - Mobile Friendly */}
-          <div className="grid grid-cols-1 mobile:grid-cols-1 md:grid-cols-2 gap-6 mobile:gap-5 mb-10">
-            {/* Add Product Type */}
-            <div className="bg-white dark:bg-gray-800 p-6 mobile:p-5 rounded-xl shadow">
-              <h3 className="text-lg mobile:text-base font-bold mb-4 text-black dark:text-white">Add Product Type</h3>
-              <div className="flex mobile:flex-col gap-3">
-                <input
-                  type="text"
-                  value={newProductType}
-                  onChange={e => setNewProductType(e.target.value)}
-                  placeholder="e.g. multi_shot, fancy"
-                  className="flex-1 px-4 py-3 mobile:py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-black dark:text-white"
-                />
-                <button onClick={handleCreateProductType} className="px-6 mobile:px-5 py-3 mobile:py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg flex items-center justify-center gap-2 transition text-sm mobile:text-xs">
-                  <FaPlus /> Add Type
-                </button>
-              </div>
-            </div>
-
-            {/* Add New Brand */}
-            <div className="bg-white dark:bg-gray-800 p-6 mobile:p-5 rounded-xl shadow">
-              <h3 className="text-lg mobile:text-base font-bold mb-4 text-black dark:text-white">Add New Brand</h3>
-              <div className="space-y-3">
+          {/* COLLAPSIBLE: Add New Brand */}
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow mb-6 overflow-hidden">
+            <button
+              onClick={() => setIsBrandSectionOpen(prev => !prev)}
+              className="w-full p-5 mobile:p-4 flex justify-between items-center text-left font-bold text-lg mobile:text-base bg-gradient-to-r from-indigo-600 to-purple-700 text-white"
+            >
+              Add New Brand
+              {isBrandSectionOpen ? <FaChevronUp /> : <FaChevronDown />}
+            </button>
+            {isBrandSectionOpen && (
+              <div className="p-6 mobile:p-5 space-y-4">
                 <input
                   type="text"
                   value={newBrand}
@@ -212,11 +207,38 @@ export default function Inventory() {
                   placeholder="Agent (optional)"
                   className="w-full px-4 py-3 mobile:py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-black dark:text-white"
                 />
-                <button onClick={handleCreateBrand} className="w-full py-3 mobile:py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition">
+                <button onClick={handleCreateBrand} className="w-full py-3 mobile:py-2.5 bg-gradient-to-r from-indigo-600 to-purple-700 hover:from-indigo-700 hover:to-purple-800 text-white rounded-lg font-medium transition shadow">
                   Save Brand
                 </button>
               </div>
-            </div>
+            )}
+          </div>
+
+          {/* COLLAPSIBLE: Add Product Type */}
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow mb-10 overflow-hidden">
+            <button
+              onClick={() => setIsTypeSectionOpen(prev => !prev)}
+              className="w-full p-5 mobile:p-4 flex justify-between items-center text-left font-bold text-lg mobile:text-base bg-gradient-to-r from-teal-600 to-cyan-700 text-white"
+            >
+              Add Product Type
+              {isTypeSectionOpen ? <FaChevronUp /> : <FaChevronDown />}
+            </button>
+            {isTypeSectionOpen && (
+              <div className="p-6 mobile:p-5">
+                <div className="flex mobile:flex-col gap-3">
+                  <input
+                    type="text"
+                    value={newProductType}
+                    onChange={e => setNewProductType(e.target.value)}
+                    placeholder="e.g. multi_shot, fancy"
+                    className="flex-1 px-4 py-3 mobile:py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-black dark:text-white"
+                  />
+                  <button onClick={handleCreateProductType} className="px-6 mobile:w-full py-3 mobile:py-2.5 bg-gradient-to-r from-teal-600 to-cyan-700 hover:from-teal-700 hover:to-cyan-800 text-white rounded-lg flex items-center justify-center gap-2 transition font-medium shadow">
+                    <FaPlus /> Add Type
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* STEP 1: SELECT BRAND FIRST */}
@@ -228,7 +250,7 @@ export default function Inventory() {
               value={selectedBrand}
               onChange={e => {
                 setSelectedBrand(e.target.value);
-                setSelectedType(''); // Reset type when brand changes
+                setSelectedType(''); 
                 setForm({ productName: '', price: '', perCase: '' });
               }}
               className="w-full px-5 py-4 mobile:py-3 rounded-lg border-2 border-blue-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-black dark:text-white text-lg mobile:text-base focus:border-blue-500 outline-none"
@@ -242,7 +264,7 @@ export default function Inventory() {
             </select>
           </div>
 
-          {/* STEP 2: SELECT PRODUCT TYPE (Only if brand selected) */}
+          {/* STEP 2: SELECT PRODUCT TYPE */}
           {selectedBrand && (
             <div className="bg-white dark:bg-gray-800 p-8 mobile:p-6 rounded-xl shadow-lg mb-8">
               <label className="block text-lg mobile:text-base font-bold mb-4 text-black dark:text-white">
@@ -261,7 +283,7 @@ export default function Inventory() {
             </div>
           )}
 
-          {/* STEP 3: PRODUCT FORM (Only if type selected) */}
+          {/* STEP 3: PRODUCT FORM */}
           {selectedBrand && selectedType && (
             <div className="bg-white dark:bg-gray-800 p-8 mobile:p-6 rounded-xl shadow-lg mb-10">
               <h3 className="text-xl mobile:text-lg font-bold mb-6 text-blue-600 dark:text-blue-400">
@@ -374,7 +396,7 @@ export default function Inventory() {
           placeholder="Agent name"
           className="w-full px-5 py-4 mobile:py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-black dark:text-white mb-6"
         />
-        <div className="flex justify-end gap- gap-4 mobile:flex-col">
+        <div className="flex justify-end gap-4 mobile:flex-col">
           <button onClick={() => setEditModalOpen(false)} className="px-6 mobile:px-5 py-3 mobile:py-2.5 bg-gray-500 hover:bg-gray-600 text-white rounded-lg transition">
             Cancel
           </button>

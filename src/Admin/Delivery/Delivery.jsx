@@ -79,7 +79,7 @@ const ChallanPDF = ({ data }) => {
 
         <View style={pdfStyles.transportBox}>
           <Text style={{ fontSize: 15, fontWeight: "bold", marginBottom: 10, color: "#1e40af" }}>Transport Details</Text>
-          <Text>From      : {data.from}</Text>
+          <Text>From      : {data.from || 'SIVAKASI'}</Text>
           <Text>To        : {data.to}</Text>
           <Text>Through   : <Text style={{ fontWeight: "bold", color: "#dc2626" }}>{data.through}</Text></Text>
           {data.lr_number && <Text>LR Number : <Text style={{ fontWeight: "bold", color: "#dc2626" }}>{data.lr_number}</Text></Text>}
@@ -108,18 +108,28 @@ export default function Delivery() {
   const [isCustomerOpen, setIsCustomerOpen] = useState(true);
 
   const [customer, setCustomer] = useState({
-    name: '', address: '', gstin: '', lr_number: '', from: '', to: '', through: ''
+    name: '', address: '', gstin: '', lr_number: '', from: 'SIVAKASI', to: '', through: ''
   });
 
-  const user = JSON.parse(localStorage.getItem('user') || '{}');
-  const created_by = user.name || user.email || 'Admin';
+  // SAFE USER PARSING - NO CRASH EVEN IF "admin" IS STORED AS STRING
+  const usernameFromStorage = localStorage.getItem('username');
+  const created_by = (() => {
+    if (!usernameFromStorage) return 'Admin';
+    try {
+      const parsed = JSON.parse(usernameFromStorage);
+      return (typeof parsed === 'object' && parsed.name) ? parsed.name : parsed;
+    } catch {
+      return usernameFromStorage.trim() || 'Admin';
+    }
+  })();
 
-  const shortenGodownName = (name) => name?.replace(/_/g, ' ').trim().split(/\s+/).map(w => /^\d+$/.test(w) ? w : w.charAt(0).toUpperCase()).join('') || '';
+  const shortenGodownName = (name) => 
+    name?.replace(/_/g, ' ').trim().split(/\s+/).map(w => /^\d+$/.test(w) ? w : w.charAt(0).toUpperCase()).join('') || '';
 
   useEffect(() => {
-    fetch(`${API_BASE_URL}/api/godown`).then(r => r.json()).then(d => {
-      setGodowns(d.map(g => ({ value: g.id, label: g.name, shortName: shortenGodownName(g.name) })));
-    });
+    fetch(`${API_BASE_URL}/api/godown`)
+      .then(r => r.json())
+      .then(d => setGodowns(d.map(g => ({ value: g.id, label: g.name, shortName: shortenGodownName(g.name) }))));
   }, []);
 
   useEffect(() => {
@@ -144,7 +154,11 @@ export default function Delivery() {
 
   const addToCart = (item) => {
     if (cart.some(i => i.id === item.id)) return setError('Already in cart');
-    setCart(prev => [...prev, { ...item, cases: 1, godown: selectedGodown?.shortName || item.godown_name }]);
+    setCart(prev => [...prev, {
+      ...item,
+      cases: 1,
+      godown: selectedGodown?.shortName || shortenGodownName(item.godown_name) || item.godown_name
+    }]);
   };
 
   const updateCases = (idx, val) => {
@@ -186,7 +200,7 @@ export default function Delivery() {
       setShowPDF(true);
       setSuccess(`Challan ${data.challan_number} Created by ${created_by}!`);
       setCart([]);
-      setCustomer({ ...customer, name: '', to: '', through: '', from: '' });
+      setCustomer(prev => ({ ...prev, name: '', to: '', through: '', address: '', gstin: '', lr_number: '' }));
     } catch (err) {
       setError(err.message);
     } finally {
@@ -196,94 +210,139 @@ export default function Delivery() {
 
   return (
     <div className="flex min-h-screen bg-gray-100 dark:bg-gray-900">
-      {/* Your existing Sidebar & Logout */}
-      <Sidebar/>
-      <Logout/>
+      <Sidebar />
+      <Logout />
 
-      <div className="flex-1 p-4 mobile:p-2 pt-20 mt-10">
-        <div className="max-w-6xl mx-auto">
-          <h2 className="text-3xl mobile:text-2xl font-bold text-center mb-6 text-black dark:text-white">Create Delivery Challan</h2>
+      <div className="flex-1 p-4 mobile:p-3 pt-20">
+        <div className="hundred:max-w-5xl onefifty:max-w-2xl mobile:max-w-lg mx-auto">
 
-          {error && <div className="bg-red-100 border border-red-400 text-red-700 p-4 rounded mb-4 mobile:text-sm">{error}</div>}
-          {success && <div className="bg-green-100 border border-green-400 text-green-700 p-4 rounded mb-4 flex items-center gap-2 mobile:text-sm"><FaCheckCircle /> {success}</div>}
+          <h2 className="text-4xl mobile:text-2xl font-bold text-center mb-8 mobile:mb-6 text-black dark:text-white">Create Delivery Challan</h2>
 
-          {/* Customer Details - Mobile Friendly */}
+          {error && <div className="bg-red-100 border border-red-400 text-red-700 p-4 mobile:p-3 rounded mb-6 mobile:mb-4 text-sm mobile:text-xs">{error}</div>}
+          {success && <div className="bg-green-100 border border-green-400 text-green-700 p-4 mobile:p-3 rounded mb-6 mobile:mb-4 flex items-center gap-2 text-sm mobile:text-xs"><FaCheckCircle /> {success}</div>}
+
+          {/* Customer Details */}
           <div className="bg-white rounded-xl shadow-lg mb-6">
-            <button onClick={() => setIsCustomerOpen(!isCustomerOpen)} className="w-full p-4 mobile:p-3 flex justify-between items-center text-xl mobile:text-lg font-bold bg-gray-600 text-white">
+            <button onClick={() => setIsCustomerOpen(!isCustomerOpen)} className="w-full p-5 mobile:p-4 flex justify-between items-center text-xl mobile:text-lg font-bold bg-gradient-to-r from-blue-600 to-indigo-700 text-white rounded-t-xl">
               Customer Details {isCustomerOpen ? <FaChevronUp /> : <FaChevronDown />}
             </button>
             {isCustomerOpen && (
-              <div className="p-4 mobile:p-3 grid grid-cols-2 mobile:gap-3 gap-4">
-                <input placeholder="Party Name *" value={customer.name} onChange={e => setCustomer({ ...customer, name: e.target.value })} className="rounded px-3 py-2 border text-sm" />
-                <input placeholder="Address" value={customer.address} onChange={e => setCustomer({ ...customer, address: e.target.value })} className="rounded px-3 py-2 border text-sm" />
-                <input placeholder="GSTIN" value={customer.gstin} onChange={e => setCustomer({ ...customer, gstin: e.target.value })} className="rounded px-3 py-2 border text-sm" />
-                <input placeholder="L.R. Number" value={customer.lr_number} onChange={e => setCustomer({ ...customer, lr_number: e.target.value })} className="rounded px-3 py-2 border text-sm" />
-                <input placeholder="From" value={customer.from} onChange={e => setCustomer({ ...customer, from: e.target.value })} className="rounded px-3 py-2 border text-sm" />
-                <input placeholder="To *" value={customer.to} onChange={e => setCustomer({ ...customer, to: e.target.value })} className="rounded px-3 py-2 border text-sm" />
-                <input placeholder="Through *" value={customer.through} onChange={e => setCustomer({ ...customer, through: e.target.value })} className="rounded px-3 py-2 border text-sm" />
+              <div className="p-6 mobile:p-4 grid grid-cols-1 mobile:grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-4 mobile:gap-3">
+                <input placeholder="Party Name *" value={customer.name} onChange={e => setCustomer({ ...customer, name: e.target.value })} className="rounded-lg px-4 mobile:px-3 py-3 mobile:py-2.5 border text-sm mobile:text-xs focus:ring-2 focus:ring-blue-500" />
+                <input placeholder="Address" value={customer.address} onChange={e => setCustomer({ ...customer, address: e.target.value })} className="rounded-lg px-4 mobile:px-3 py-3 mobile:py-2.5 border text-sm mobile:text-xs" />
+                <input placeholder="GSTIN" value={customer.gstin} onChange={e => setCustomer({ ...customer, gstin: e.target.value })} className="rounded-lg px-4 mobile:px-3 py-3 mobile:py-2.5 border text-sm mobile:text-xs" />
+                <input placeholder="L.R. Number" value={customer.lr_number} onChange={e => setCustomer({ ...customer, lr_number: e.target.value })} className="rounded-lg px-4 mobile:px-3 py-3 mobile:py-2.5 border text-sm mobile:text-xs" />
+                <input placeholder="From" value={customer.from} onChange={e => setCustomer({ ...customer, from: e.target.value })} className="rounded-lg px-4 mobile:px-3 py-3 mobile:py-2.5 border text-sm mobile:text-xs" />
+                <input placeholder="To *" value={customer.to} onChange={e => setCustomer({ ...customer, to: e.target.value })} className="rounded-lg px-4 mobile:px-3 py-3 mobile:py-2.5 border text-sm mobile:text-xs" />
+                <input placeholder="Through *" value={customer.through} onChange={e => setCustomer({ ...customer, through: e.target.value })} className="rounded-lg px-4 mobile:px-3 py-3 mobile:py-2.5 border text-sm mobile:text-xs" />
               </div>
             )}
           </div>
 
-          {/* Cart */}
+          {/* Cart Table */}
           {cart.length > 0 && (
-            <div className="bg-white rounded-lg shadow p-4 mb-6">
-              <table className="w-full text-sm border-collapse">
-                <thead><tr className="bg-gray-100"><th className="p-2 border">S.No</th><th>Product</th><th>Cases</th><th>Per</th><th>Qty</th><th>Godown</th><th></th></tr></thead>
-                <tbody>
-                  {cart.map((item, i) => (
-                    <tr key={i}>
-                      <td className="p-2 border text-center">{i + 1}</td>
-                      <td className="p-2 border">{item.productname}</td>
-                      <td className="p-2 border text-center">
-                        <input type="number" value={item.cases} onChange={e => updateCases(i, parseInt(e.target.value) || 1)} className="w-16 p-1 border rounded" />
-                      </td>
-                      <td className="p-2 border text-center">{item.per_case}</td>
-                      <td className="p-2 border text-center">{item.cases * item.per_case}</td>
-                      <td className="p-2 border text-center">{item.godown}</td>
-                      <td className="p-2 border text-center"><button onClick={() => removeFromCart(i)} className="text-red-600"><FaTrash /></button></td>
+            <div className="bg-white rounded-xl shadow-lg p-6 mobile:p-4 mb-8 overflow-x-auto hundred:w-full onefifty:w-full mobile:w-[405px]">
+              <h3 className="text-2xl mobile:text-xl font-bold mb-4 mobile:mb-3 text-gray-800">Cart Items</h3>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm mobile:text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-gradient-to-r from-gray-800 to-gray-900 text-white text-lg mobile:text-sm">
+                      <th className="p-3 mobile:p-2 border">S.No</th>
+                      <th className="p-3 mobile:p-2 border">Brand</th>
+                      <th className="p-3 mobile:p-2 border">Product</th>
+                      <th className="p-3 mobile:p-2 border">Cases</th>
+                      <th className="p-3 mobile:p-2 border">Per</th>
+                      <th className="p-3 mobile:p-2 border">Qty</th>
+                      <th className="p-3 mobile:p-2 border">Godown</th>
+                      <th className="p-3 mobile:p-2 border">Action</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {cart.map((item, i) => (
+                      <tr key={i} className="hover:bg-gray-50 transition text-lg mobile:text-sm font-semibold">
+                        <td className="p-3 mobile:p-2 border text-center font-medium">{i + 1}</td>
+                        <td className="p-3 mobile:p-2 border text-center  text-black">{item.brand || '-'}</td>
+                        <td className="p-3 mobile:p-2 text-center border">{item.productname}</td>
+                        <td className="p-3 mobile:p-2 border text-center">
+                          <input
+                            type="number"
+                            min="1"
+                            max={item.current_cases || 999}
+                            value={item.cases}
+                            onChange={e => updateCases(i, parseInt(e.target.value) || 1)}
+                            className="w-20 mobile:w-16 p-2 mobile:p-1.5 border-2 rounded-lg text-center font-bold focus:ring-4 focus:ring-blue-300 focus:border-blue-600 outline-none"
+                            autoFocus={i === cart.length - 1}
+                          />
+                        </td>
+                        <td className="p-3 mobile:p-2 border text-center">{item.per_case || 1}</td>
+                        <td className="p-3 mobile:p-2 border border-black text-center font-bold text-green-600">{item.cases * (item.per_case || 1)}</td>
+                        <td className="p-3 mobile:p-2 border border-black text-center text-red-600 font-bold">{item.godown}</td>
+                        <td className="p-3 mobile:p-2 border text-center">
+                          <button onClick={() => removeFromCart(i)} className="text-red-600 hover:text-red-800 text-lg mobile:text-base"><FaTrash /></button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
 
-          {/* Global Search & Godown */}
-          <div className="bg-white p-4 rounded-lg shadow mb-4">
+          {/* Global Search */}
+          <div className="bg-white p-6 mobile:p-4 rounded-xl shadow mb-6">
             <div className="relative mb-4">
-              <FaSearch className="absolute left-3 top-3 text-gray-500" />
-              <input placeholder="Search products..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="w-full pl-10 pr-3 py-2 border rounded" />
+              <FaSearch className="absolute left-4 mobile:left-3 top-4 mobile:top-3.5 text-gray-500 text-xl mobile:text-lg" />
+              <input
+                placeholder="Search products..."
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                className="w-full pl-12 mobile:pl-10 pr-4 py-4 mobile:py-3.5 border-2 rounded-xl text-lg mobile:text-base focus:ring-4 focus:ring-blue-300 outline-none"
+              />
             </div>
             {globalProducts.length > 0 && (
-              <div className="max-h-48 overflow-y-auto border rounded bg-gray-50 p-2">
+              <div className="max-h-64 mobile:max-h-56 overflow-y-auto border-2 rounded-xl bg-gray-50">
                 {globalProducts.map(p => (
-                  <div key={p.id} className="p-2 border-b cursor-pointer hover:bg-blue-50" onClick={() => { addToCart(p); setSearchQuery(''); setGlobalProducts([]); }}>
-                    <strong>{p.productname}</strong> ({p.shortGodown}) - ₹{p.rate_per_box} - Cases: {p.current_cases}
+                  <div key={p.id} className="p-4 mobile:p-3 border-b hover:bg-blue-50 cursor-pointer transition text-sm mobile:text-xs" onClick={() => { addToCart(p); setSearchQuery(''); setGlobalProducts([]); }}>
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <strong className="text-lg mobile:text-base">{p.productname}</strong>
+                        <span className="text-blue-700 font-medium ml-2 mobile:ml-1 text-sm mobile:text-xs">({p.brand})</span>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-bold text-red-600 text-base mobile:text-sm">{p.shortGodown}</div>
+                        <div className="text-xs mobile:text-[10px]">Cases: {p.current_cases} • ₹{p.rate_per_box}/box</div>
+                      </div>
+                    </div>
                   </div>
                 ))}
               </div>
             )}
           </div>
 
-          <Select options={godowns} value={selectedGodown} onChange={setSelectedGodown} placeholder="Select Godown" className="mb-6" />
+          <Select options={godowns} value={selectedGodown} onChange={setSelectedGodown} placeholder="Select Godown" className="mb-8 mobile:mb-6 text-base mobile:text-sm" />
 
           {selectedGodown && stock.length > 0 && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            <div className="grid grid-cols-2 mobile:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5 mobile:gap-4 mb-10">
               {stock.map(item => (
-                <div key={item.id} className="border p-3 rounded bg-gray-50">
-                  <p className="font-bold text-sm">{item.productname}</p>
-                  <p className="text-xs">Cases: {item.current_cases}</p>
-                  <button onClick={() => addToCart(item)} className="mt-2 w-full bg-sky-600 text-white py-1 rounded text-sm">Add</button>
+                <div key={item.id} className="border-2 rounded-xl p-5 mobile:p-4 bg-white shadow hover:shadow-xl transition text-sm mobile:text-xs">
+                  <h4 className="font-bold text-base mobile:text-sm text-gray-800 truncate">{item.productname}</h4>
+                  <p className="text-gray-600 mt-1">Brand: <span className="font-semibold text-blue-700">{item.brand || 'N/A'}</span></p>
+                  <p className="text-gray-600">Cases Left: <span className="font-bold text-green-600">{item.current_cases}</span></p>
+                  <button onClick={() => addToCart(item)} className="mt-4 w-full bg-gradient-to-r from-blue-600 to-indigo-700 text-white font-bold py-3 mobile:py-2.5 rounded-lg hover:from-blue-700 hover:to-indigo-800 transition text-sm mobile:text-xs">
+                    Add to Cart
+                  </button>
                 </div>
               ))}
             </div>
           )}
-          
-          <div className="flex justify-center mt-8">
-            <button onClick={generateChallan} disabled={loading || cart.length === 0}
-              className="w-full mobile:w-11/12 bg-gradient-to-r from-sky-500 to-blue-600 text-white font-bold py-5 mobile:py-4 text-xl mobile:text-lg rounded-2xl shadow-lg">
-              {loading ? <>Generating... <FaSpinner className="inline ml-3 animate-spin" /></> : <>Generate Challan</>}
+
+          <div className="flex justify-center mt-12 mobile:mt-8">
+            <button
+              onClick={generateChallan}
+              disabled={loading || cart.length === 0}
+              className="w-full mobile:w-11/12 max-w-2xl bg-gradient-to-r from-cyan-500 to-blue-700 text-white font-bold py-6 mobile:py-5 text-2xl mobile:text-xl rounded-3xl shadow-2xl hover:shadow-cyan-500/50 disabled:opacity-50"
+            >
+              {loading ? <>Generating... <FaSpinner className="inline ml-3 animate-spin" /></> : 'Generate Delivery Challan'}
             </button>
           </div>
         </div>
@@ -291,22 +350,25 @@ export default function Delivery() {
 
       {/* PDF Modal */}
       {showPDF && pdfData && (
-        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-4xl h-5/6 flex flex-col">
-            <div className="bg-sky-600 text-white p-6 flex justify-between">
-              <h3 className="text-2xl font-bold">Delivery Challan: {pdfData.challan_number}</h3>
-              <button onClick={() => setShowPDF(false)} className="text-3xl">×</button>
+        <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4 mobile:p-2">
+          <div className="bg-white rounded-3xl w-full max-w-5xl mobile:max-w-full mobile:mx-2 h-5/6 mobile:h-full flex flex-col shadow-2xl">
+            <div className="bg-gradient-to-r from-cyan-600 to-blue-700 text-white p-6 mobile:p-4 rounded-t-3xl mobile:rounded-t-xl flex justify-between items-center">
+              <h3 className="text-3xl mobile:text-xl font-bold">Delivery Challan: {pdfData.challan_number}</h3>
+              <button onClick={() => setShowPDF(false)} className="text-5xl mobile:text-4xl hover:text-red-300">×</button>
             </div>
             <PDFViewer width="100%" height="100%" className="flex-1">
               <ChallanPDF data={pdfData} />
             </PDFViewer>
-            <div className="p-4 bg-gray-100 text-center">
-              <button onClick={async () => {
-                const blob = await pdf(<ChallanPDF data={pdfData} />).toBlob();
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url; a.download = `${pdfData.challan_number}.pdf`; a.click();
-              }} className="bg-green-600 hover:bg-green-700 text-white px-8 py-3 rounded-lg font-bold">
+            <div className="p-6 mobile:p-4 bg-gray-100 text-center">
+              <button
+                onClick={async () => {
+                  const blob = await pdf(<ChallanPDF data={pdfData} />).toBlob();
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url; a.download = `Challan_${pdfData.challan_number}.pdf`; a.click();
+                }}
+                className="bg-green-600 hover:bg-green-700 text-white px-10 mobile:px-8 py-4 mobile:py-3 rounded-xl font-bold text-xl mobile:text-lg shadow-lg"
+              >
                 Download PDF
               </button>
             </div>

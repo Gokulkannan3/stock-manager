@@ -215,35 +215,48 @@ export default function Booking() {
 
   const calculate = () => {
     let subtotal = 0, totalCases = 0;
+
     cart.forEach(i => {
       const amt = i.cases * i.per_case * i.rate_per_box * (1 - (i.discount || 0) / 100);
       subtotal += amt;
       totalCases += i.cases;
     });
-    const packing = applyProcessingFee ? subtotal * (packingPercent / 100) : 0;
-    const extraTaxable = parseFloat(taxableValue) || 0;
-    const subtotalWithPacking = subtotal + packing;
-    const taxableBase = subtotalWithPacking + extraTaxable;
-    const discountAmt = taxableBase * (additionalDiscount / 100);
-    const net = taxableBase - discountAmt;
 
+    const packing = applyProcessingFee ? subtotal * (packingPercent / 100) : 0;
+    const taxableAmount = subtotal + packing;                    // Only this is taxable
+    const extraTaxable = parseFloat(taxableValue) || 0;          // This is NOT taxed again
+
+    // Apply additional discount on taxable amount only (or on total — your choice)
+    const discountAmt = taxableAmount * (additionalDiscount / 100);
+    const netTaxable = taxableAmount - discountAmt;
+
+    // Apply GST only on netTaxable (subtotal + packing - discount)
     let cgst = 0, sgst = 0, igst = 0;
-    if (applyIGST) igst = net * 0.18;
-    else if (applyCGST && applySGST) { cgst = net * 0.09; sgst = net * 0.09; }
+    if (applyIGST) {
+      igst = netTaxable * 0.18;
+    } else if (applyCGST && applySGST) {
+      cgst = netTaxable * 0.09;
+      sgst = netTaxable * 0.09;
+    }
 
     const totalTax = cgst + sgst + igst;
-    const grandTotal = Math.round(net + totalTax);
+    const amountAfterTax = netTaxable + totalTax;
 
-    return { 
-      subtotal: subtotal.toFixed(2), 
+    // Now add the extra taxable amount (no GST applied on it)
+    const grandTotal = Math.round(amountAfterTax + extraTaxable);
+
+    return {
+      subtotal: subtotal.toFixed(2),
       packing: packing.toFixed(2),
+      discountAmt: discountAmt.toFixed(2),
+      taxableAmount: netTaxable.toFixed(2),           // taxable base after discount
+      cgst: cgst.toFixed(2),
+      sgst: sgst.toFixed(2),
+      igst: igst.toFixed(2),
+      totalTax: totalTax.toFixed(2),
       extraTaxable: extraTaxable.toFixed(2),
-      discountAmt: discountAmt.toFixed(2), 
-      cgst: cgst.toFixed(2), 
-      sgst: sgst.toFixed(2), 
-      igst: igst.toFixed(2), 
-      grandTotal, 
-      totalCases 
+      grandTotal,
+      totalCases
     };
   };
   const calc = calculate();
@@ -495,18 +508,18 @@ export default function Booking() {
                         const discountAmt = amountBefore * (item.discount / 100);
                         const finalAmt = amountBefore - discountAmt;
                         return (
-                          <tr key={idx} className="border-b dark:border-gray-700">
-                            <td className={`p-3 text-center ${tableText}`}>{idx + 1}</td>
-                            <td className={`p-3 ${tableText}`}>{item.productname}</td>
-                            <td className="p-3 text-center">
+                          <tr key={idx} className="border dark:border-gray-700">
+                            <td className={`p-3 text-center border ${tableText}`}>{idx + 1}</td>
+                            <td className={`p-3 text-center border ${tableText}`}>{item.productname}</td>
+                            <td className="p-3 text-center border">
                               <input type="number" min="1" max={item.current_cases} value={item.cases} onChange={e => updateCases(idx, parseInt(e.target.value) || 1)} className="w-20 p-2 border rounded dark:bg-gray-700" />
                             </td>
-                            <td className={`p-3 text-center ${tableText}`}>{item.per_case}</td>
-                            <td className={`p-3 text-center ${tableText}`}>{qty}</td>
-                            <td className={`p-3 text-center ${tableText}`}>₹{item.rate_per_box.toFixed(2)}</td>
-                            <td className={`p-3 text-center font-medium ${tableText}`}>₹{finalAmt.toFixed(2)}</td>
-                            <td className={`p-3 text-center ${tableText}`}>{item.godown}</td>
-                            <td className="p-3 text-center">
+                            <td className={`p-3 text-center border ${tableText}`}>{item.per_case}</td>
+                            <td className={`p-3 text-center border ${tableText}`}>{qty}</td>
+                            <td className={`p-3 text-center border ${tableText}`}>₹{item.rate_per_box.toFixed(2)}</td>
+                            <td className={`p-3 text-center border font-medium ${tableText}`}>₹{finalAmt.toFixed(2)}</td>
+                            <td className={`p-3 text-center border ${tableText}`}>{item.godown}</td>
+                            <td className="p-3 text-center border">
                               <button onClick={() => removeFromCart(idx)} className="text-red-600 hover:text-red-800"><FaTrash /></button>
                             </td>
                           </tr>

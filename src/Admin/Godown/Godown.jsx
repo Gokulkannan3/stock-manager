@@ -252,7 +252,7 @@ export default function Godown() {
                   value={newGodownName}
                   onChange={e => setNewGodownName(e.target.value)}
                   placeholder="Enter godown name"
-                  className="flex-1 px-4 py-2 rounded border text-sm"
+                  className="flex-1 px-4 py-2 rounded border text-sm text-black"
                   style={styles.input}
                   disabled={loading}
                 />
