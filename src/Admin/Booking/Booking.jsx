@@ -617,15 +617,15 @@ export default function Booking() {
                     <p>Through: {customer.through}</p>
                   </div>
                   <div className="text-right space-y-2">
-                    <p>Goods Value <span className="float-right">₹{calc.subtotal}</span></p>
-                    {applyProcessingFee && <p>Packing @ {packingPercent}% <span className="float-right">₹{calc.packing}</span></p>}
-                    {parseFloat(taxableValue) > 0 && <p className="text-blue-600 font-bold">Extra Taxable Amount <span className="float-right">₹{calc.extraTaxable}</span></p>}
-                    {parseFloat(calc.discountAmt) > 0 && <p>Special Discount <span className="float-right text-red-600">-₹{calc.discountAmt}</span></p>}
-                    {applyCGST && <p>CGST @ 9% <span className="float-right">₹{calc.cgst}</span></p>}
-                    {applySGST && <p>SGST @ 9% <span className="float-right">₹{calc.sgst}</span></p>}
-                    {applyIGST && <p>IGST @ 18% <span className="float-right">₹{calc.igst}</span></p>}
+                    <p>Goods Value : <span className="float-right ml-2">₹{calc.subtotal}</span></p>
+                    {applyProcessingFee && <p>Packing @ {packingPercent}% : <span className="float-right ml-2">₹{calc.packing}</span></p>}
+                    {parseFloat(taxableValue) > 0 && <p className="text-blue-600 font-bold ml-2">Extra Taxable Amount :<span className="float-right">₹{calc.extraTaxable}</span></p>}
+                    {parseFloat(calc.discountAmt) > 0 && <p>Special Discount : <span className="float-right text-red-600 ml-2">-₹{calc.discountAmt}</span></p>}
+                    {applyCGST && <p>CGST @ 9% : <span className="float-right ml-2">₹{calc.cgst}</span></p>}
+                    {applySGST && <p>SGST @ 9% : <span className="float-right ml-2">₹{calc.sgst}</span></p>}
+                    {applyIGST && <p>IGST @ 18% : <span className="float-right ml-2">₹{calc.igst}</span></p>}
                     <p className="text-2xl font-bold text-green-600 dark:text-green-400 mt-4">
-                      NET AMOUNT <span className="float-right">₹{calc.grandTotal}</span>
+                      NET AMOUNT : <span className="float-right ml-2">₹{calc.grandTotal}</span>
                     </p>
                   </div>
                 </div>
@@ -654,8 +654,8 @@ export default function Booking() {
                     <button type="button" onClick={() => { if (applyCGST && applySGST) { setApplyCGST(false); setApplySGST(false); } else { setApplyCGST(true); setApplySGST(true); setApplyIGST(false); } }} className={`p-8 rounded-2xl border-2 text-left transition-all transform hover:scale-105 shadow-lg relative overflow-hidden ${(applyCGST && applySGST) ? 'border-green-500 bg-green-50 dark:bg-green-900/50 ring-4 ring-green-300 dark:ring-green-600' : 'border-gray-300 dark:border-gray-600 hover:border-green-400 bg-white dark:bg-gray-800'}`}>
                       <div className="flex items-center justify-between">
                         <div><h4 className={`font-bold hundred:text-xl mobile:text-md ${textClass}`}>Tamil Nadu</h4></div>
-                        <div className={`w-10 h-10 hundred:block mobile:hidden rounded-full border-4 flex items-center justify-center transition-all ${(applyCGST && applySGST) ? 'bg-green-500 border-green-500' : 'border-gray-400 bg-transparent'}`}>
-                          {(applyCGST && applySGST) && <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>}
+                        <div className={`w-10 h-10 hundred:block tab:block mobile:hidden rounded-full border-4 flex items-center justify-center transition-all ${(applyCGST && applySGST) ? 'bg-green-500 border-green-500' : 'border-gray-400 bg-transparent'}`}>
+                          {(applyCGST && applySGST) && <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>}
                         </div>
                       </div>
                     </button>
@@ -663,8 +663,8 @@ export default function Booking() {
                     <button type="button" onClick={() => { if (applyIGST) { setApplyIGST(false); } else { setApplyIGST(true); setApplyCGST(false); setApplySGST(false); } }} className={`p-8 rounded-2xl border-2 text-left transition-all transform hover:scale-105 shadow-lg relative overflow-hidden ${applyIGST ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/50 ring-4 ring-blue-300 dark:ring-blue-600' : 'border-gray-300 dark:border-gray-600 hover:border-blue-400 bg-white dark:bg-gray-800'}`}>
                       <div className="flex items-center justify-between">
                         <div><h4 className={`font-bold hundred:text-xl mobile:text-md ${textClass}`}>Other State</h4></div>
-                        <div className={`w-10 h-10 hundred:block mobile:hidden rounded-full border-4 flex items-center justify-center transition-all ${applyIGST ? 'bg-blue-500 border-blue-500' : 'border-gray-400 bg-transparent'}`}>
-                          {applyIGST && <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>}
+                        <div className={`w-10 h-10 hundred:block tab:block mobile:hidden rounded-full border-4 flex items-center justify-center transition-all ${applyIGST ? 'bg-blue-500 border-blue-500' : 'border-gray-400 bg-transparent'}`}>
+                          {applyIGST && <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>}
                         </div>
                       </div>
                     </button>
