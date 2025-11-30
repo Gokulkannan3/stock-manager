@@ -157,9 +157,17 @@ export default function Godown() {
       });
       const d = await res.json();
       if (!res.ok) throw new Error(d.message || 'Failed');
+
+      // Instantly add the new godown to the dropdown (cache)
+      const newGodown = {
+        value: d.id || d.godown_id || Date.now(), // backend may return id in different key
+        label: capitalize(newGodownName.trim()),
+      };
+      setGodowns(prev => [...prev, newGodown]);
+
       setSuccess('Godown created');
       setNewGodownName('');
-      await fetchGodowns();
+      // No need to refetch – already cached
     } catch (e) { setError(e.message || 'Failed'); }
     finally { setLoading(false); }
   };
@@ -257,7 +265,7 @@ export default function Godown() {
                   disabled={loading}
                 />
                 <button onClick={handleCreateGodown} disabled={loading} style={styles.button} className="px-5 py-2 rounded text-white font-medium flex items-center gap-2">
-                  {loading ? <FaSpinner className="animate-spin" /> : <FaPlus />} Add Godown
+                  {loading ? <FaSpinner className="animate-spin" /> : <FaPlus />} Save
                 </button>
               </div>
             </div>
@@ -267,7 +275,7 @@ export default function Godown() {
               <h3 className="text-lg font-semibold">Add Stock Allocations</h3>
 
               {rows.map((row, idx) => (
-                <div key={row.id} className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow border border-gray-200 dark:border-gray-700">
+                <div key={row.id} className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow border border-gray-200 dark:border-gray-700 relative">
 
                   {/* Godown */}
                   <div className="mb-4">
@@ -353,22 +361,26 @@ export default function Godown() {
                     </div>
                   </div>
 
-                  {rows.length > 1 && (
-                    <div className="mt-4 text-right">
-                      <button onClick={() => removeRow(row.id)} className="text-red-600 hover:text-red-800 text-sm">
-                        <FaTrash className="inline mr-1" /> Remove Row
+                  {/* Buttons inside the card */}
+                  <div className="mt-6 flex justify-center gap-5 items-center">
+                    <button
+                      onClick={addRow}
+                      style={styles.button}
+                      className="px-5 py-2 rounded text-white font-medium flex items-center gap-2 text-sm"
+                    >
+                      <FaPlus /> Add Another Row
+                    </button>
+
+                    {rows.length > 1 && (
+                      <button onClick={() => removeRow(row.id)} className="px-5 py-2 rounded bg-red-500 text-white text-sm">
+                        <FaTrash className="inline mr-1" /> Remove This Row
                       </button>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
               ))}
 
-              <div className="flex justify-center gap-4">
-                <button onClick={addRow} style={styles.button} className="px-6 py-3 rounded text-white font-medium flex items-center gap-2">
-                  <FaPlus /> Add Another Row
-                </button>
-              </div>
-
+              {/* Final Submit Button */}
               <button
                 onClick={handleBulkAddStock}
                 disabled={loading}

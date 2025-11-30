@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { FaPlus, FaTrash, FaFilePdf, FaSpinner, FaCheckCircle, FaSearch, FaChevronDown, FaChevronUp } from 'react-icons/fa';
+import { FaTrash, FaSpinner, FaCheckCircle, FaSearch, FaChevronDown, FaChevronUp, FaDownload } from 'react-icons/fa';
 import { Document, Page, Text, View, StyleSheet, PDFViewer, pdf } from '@react-pdf/renderer';
 import { API_BASE_URL } from '../../../Config';
 import Select from 'react-select';
 import Sidebar from '../Sidebar/Sidebar';
 import Logout from '../Logout';
 
+// PDF Styles
 const pdfStyles = StyleSheet.create({
   page: { padding: 40 },
   title: { fontSize: 36, textAlign: "center", marginBottom: 6, fontWeight: "bold", color: "#b91c1c" },
@@ -42,7 +43,7 @@ const ChallanPDF = ({ data }) => {
             <Text style={pdfStyles.valueBold}>{data.customer_name}</Text>
             {data.address && <Text style={pdfStyles.value}>{data.address}</Text>}
             {data.gstin && <Text style={pdfStyles.value}>GSTIN: {data.gstin}</Text>}
-            <Text style={pdfStyles.value}>By: {data.created_by}</Text>
+            <Text style={pdfStyles.value}>Created By: {data.created_by}</Text>
           </View>
           <View style={pdfStyles.challanInfo}>
             <Text style={{ fontSize: 13 }}>Date: {new Date().toLocaleDateString("en-IN")}</Text>
@@ -97,9 +98,11 @@ export default function Delivery() {
   const [godowns, setGodowns] = useState([]);
   const [selectedGodown, setSelectedGodown] = useState(null);
   const [stock, setStock] = useState([]);
+  const [stockLoading, setStockLoading] = useState(false);
   const [cart, setCart] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [globalProducts, setGlobalProducts] = useState([]);
+  const [globalLoading, setGlobalLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
@@ -111,7 +114,6 @@ export default function Delivery() {
     name: '', address: '', gstin: '', lr_number: '', from: 'SIVAKASI', to: '', through: ''
   });
 
-  // SAFE USER PARSING - NO CRASH EVEN IF "admin" IS STORED AS STRING
   const usernameFromStorage = localStorage.getItem('username');
   const created_by = (() => {
     if (!usernameFromStorage) return 'Admin';
@@ -129,35 +131,65 @@ export default function Delivery() {
   useEffect(() => {
     fetch(`${API_BASE_URL}/api/godown`)
       .then(r => r.json())
-      .then(d => setGodowns(d.map(g => ({ value: g.id, label: g.name, shortName: shortenGodownName(g.name) }))));
+      .then(d => setGodowns(d.map(g => ({ value: g.id, label: g.name, shortName:  shortenGodownName(g.name) }))));
   }, []);
 
   useEffect(() => {
     if (selectedGodown) {
+      setStockLoading(true);
       fetch(`${API_BASE_URL}/api/godown/stock/${selectedGodown.value}`)
         .then(r => r.json())
-        .then(data => setStock(data.map(i => ({ ...i, id: Number(i.id) }))));
+        .then(data => {
+          const filtered = data.filter(item => item.current_cases > 0);
+          setStock(filtered.map(i => ({ ...i, id: Number(i.id) })));
+        })
+        .catch(() => setStock([]))
+        .finally(() => setStockLoading(false));
+    } else {
+      setStock([]);
+      setStockLoading(false);
     }
   }, [selectedGodown]);
 
   useEffect(() => {
     const t = setTimeout(() => {
       if (searchQuery.length >= 2) {
+        setGlobalLoading(true);
         fetch(`${API_BASE_URL}/api/search/global?name=${searchQuery}`)
           .then(r => r.json())
-          .then(data => data.map(p => ({ ...p, shortGodown: shortenGodownName(p.godown_name) })))
-          .then(setGlobalProducts);
-      } else setGlobalProducts([]);
+          .then(data => data.map(p => ({ 
+            ...p, 
+            shortGodown: shortenGodownName(p.godown_name),
+            product_type: (p.product_type || '').toLowerCase().trim().replace(/\s+/g, '_')
+          })))
+          .then(setGlobalProducts)
+          .catch(() => setGlobalProducts([]))
+          .finally(() => setGlobalLoading(false));
+      } else {
+        setGlobalProducts([]);
+        setGlobalLoading(false);
+      }
     }, 400);
     return () => clearTimeout(t);
   }, [searchQuery]);
 
   const addToCart = (item) => {
-    if (cart.some(i => i.id === item.id)) return setError('Already in cart');
+    if (cart.some(i => i.id === item.id)) {
+      setError('Item already in cart');
+      return;
+    }
+    
+    const safeProductType = (item.product_type || '')
+      .toString()
+      .toLowerCase()
+      .trim()
+      .replace(/\s+/g, '_') || 'unknown';
+
     setCart(prev => [...prev, {
       ...item,
       cases: 1,
-      godown: selectedGodown?.shortName || shortenGodownName(item.godown_name) || item.godown_name
+      godown: selectedGodown?.shortName || shortenGodownName(item.godown_name) || item.godown_name,
+      product_type: safeProductType
     }]);
   };
 
@@ -169,20 +201,25 @@ export default function Delivery() {
   const removeFromCart = (idx) => setCart(prev => prev.filter((_, i) => i !== idx));
 
   const generateChallan = async () => {
-    if (!customer.name || !customer.to || !customer.through || cart.length === 0) {
-      return setError('Fill all required fields');
-    }
+    if (!customer.name?.trim()) return setError('Party Name required');
+    if (!customer.to?.trim()) return setError('Destination required');
+    if (!customer.through?.trim()) return setError('Transport required');
+    if (cart.length === 0) return setError('Add items to cart');
 
     setLoading(true);
+    setError('');
+    setSuccess('');
+
     const payload = {
       ...customer,
       items: cart.map(i => ({
         id: i.id,
         productname: i.productname,
-        brand: i.brand,
+        brand: i.brand || '',
         cases: i.cases,
-        per_case: i.per_case || 1,
-        godown: i.godown
+        per_case: Math.max(1, i.per_case || 1),
+        godown: i.godown,
+        product_type: i.product_type
       })),
       created_by
     };
@@ -194,13 +231,27 @@ export default function Delivery() {
         body: JSON.stringify(payload)
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Failed');
+      if (!res.ok) throw new Error(data.message || 'Failed to create challan');
 
-      setPdfData({ ...payload, challan_number: data.challan_number, created_by });
+      const fullData = { ...payload, challan_number: data.challan_number };
+      setPdfData(fullData);
       setShowPDF(true);
-      setSuccess(`Challan ${data.challan_number} Created by ${created_by}!`);
+      setSuccess(`Challan ${data.challan_number} created successfully!`);
+
+      // Auto Download PDF (silently — no loading message)
+      const blob = await pdf(<ChallanPDF data={fullData} />).toBlob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Challan_${data.challan_number}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+
+      // Reset form
       setCart([]);
-      setCustomer(prev => ({ ...prev, name: '', to: '', through: '', address: '', gstin: '', lr_number: '' }));
+      setCustomer({ name: '', address: '', gstin: '', lr_number: '', from: 'SIVAKASI', to: '', through: '' });
     } catch (err) {
       setError(err.message);
     } finally {
@@ -208,77 +259,116 @@ export default function Delivery() {
     }
   };
 
+  const manualDownload = async () => {
+    if (!pdfData) return;
+    try {
+      const blob = await pdf(<ChallanPDF data={pdfData} />).toBlob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Challan_${pdfData.challan_number}.pdf`;
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      setError("Download failed. Please try again.");
+    }
+  };
+
   return (
-    <div className="flex min-h-screen bg-gray-100 dark:bg-gray-900">
+    <div className="flex min-h-screen bg-gradient-to-br bg-gray-100 dark:bg-gray-900">
       <Sidebar />
       <Logout />
 
-      <div className="flex-1 p-4 mobile:p-3 pt-20">
-        <div className="hundred:max-w-5xl onefifty:max-w-2xl mobile:max-w-lg mx-auto">
+      <div className="flex-1 pt-20 px-4 mobile:px-3">
+        <div className="max-w-7xl mx-auto">
 
-          <h2 className="text-4xl mobile:text-2xl font-bold text-center mb-8 mobile:mb-6 text-black dark:text-white">Create Delivery Challan</h2>
+          <h1 className="text-5xl hundred:text-4xl mobile:text-2xl font-extrabold text-center mb-10 text-black dark:text-white">
+            Delivery Challan
+          </h1>
 
-          {error && <div className="bg-red-100 border border-red-400 text-red-700 p-4 mobile:p-3 rounded mb-6 mobile:mb-4 text-sm mobile:text-xs">{error}</div>}
-          {success && <div className="bg-green-100 border border-green-400 text-green-700 p-4 mobile:p-3 rounded mb-6 mobile:mb-4 flex items-center gap-2 text-sm mobile:text-xs"><FaCheckCircle /> {success}</div>}
+          {error && (
+            <div className="bg-red-50 border-l-4 border-red-500 text-red-700 p-5 rounded-xl mb-6 text-lg hundred:text-xl mobile:text-base">
+              {error}
+            </div>
+          )}
+          {success && (
+            <div className="bg-green-50 border-l-4 border-green-500 text-green-700 p-5 rounded-xl mb-6 flex items-center gap-3 text-lg hundred:text-xl mobile:text-base">
+              <FaCheckCircle className="text-3xl" /> {success}
+            </div>
+          )}
 
           {/* Customer Details */}
-          <div className="bg-white rounded-xl shadow-lg mb-6">
-            <button onClick={() => setIsCustomerOpen(!isCustomerOpen)} className="w-full p-5 mobile:p-4 flex justify-between items-center text-xl mobile:text-lg font-bold bg-gradient-to-r from-blue-600 to-indigo-700 text-white rounded-t-xl">
-              Customer Details {isCustomerOpen ? <FaChevronUp /> : <FaChevronDown />}
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl overflow-hidden mb-20">
+            <button
+              onClick={() => setIsCustomerOpen(!isCustomerOpen)}
+              className="w-full p-6 flex justify-between items-center bg-gradient-to-r from-indigo-600 to-purple-700 text-white font-bold text-2xl hundred:text-3xl mobile:text-xl rounded-t-2xl hover:from-indigo-700 hover:to-purple-800 transition"
+            >
+              Customer & Transport Details
+              {isCustomerOpen ? <FaChevronUp /> : <FaChevronDown />}
             </button>
             {isCustomerOpen && (
-              <div className="p-6 mobile:p-4 grid grid-cols-1 mobile:grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-4 mobile:gap-3">
-                <input placeholder="Party Name *" value={customer.name} onChange={e => setCustomer({ ...customer, name: e.target.value })} className="rounded-lg px-4 mobile:px-3 py-3 mobile:py-2.5 border text-sm mobile:text-xs focus:ring-2 focus:ring-blue-500" />
-                <input placeholder="Address" value={customer.address} onChange={e => setCustomer({ ...customer, address: e.target.value })} className="rounded-lg px-4 mobile:px-3 py-3 mobile:py-2.5 border text-sm mobile:text-xs" />
-                <input placeholder="GSTIN" value={customer.gstin} onChange={e => setCustomer({ ...customer, gstin: e.target.value })} className="rounded-lg px-4 mobile:px-3 py-3 mobile:py-2.5 border text-sm mobile:text-xs" />
-                <input placeholder="L.R. Number" value={customer.lr_number} onChange={e => setCustomer({ ...customer, lr_number: e.target.value })} className="rounded-lg px-4 mobile:px-3 py-3 mobile:py-2.5 border text-sm mobile:text-xs" />
-                <input placeholder="From" value={customer.from} onChange={e => setCustomer({ ...customer, from: e.target.value })} className="rounded-lg px-4 mobile:px-3 py-3 mobile:py-2.5 border text-sm mobile:text-xs" />
-                <input placeholder="To *" value={customer.to} onChange={e => setCustomer({ ...customer, to: e.target.value })} className="rounded-lg px-4 mobile:px-3 py-3 mobile:py-2.5 border text-sm mobile:text-xs" />
-                <input placeholder="Through *" value={customer.through} onChange={e => setCustomer({ ...customer, through: e.target.value })} className="rounded-lg px-4 mobile:px-3 py-3 mobile:py-2.5 border text-sm mobile:text-xs" />
+              <div className="p-8 mobile:p-5 grid hundred:grid-cols-4 mobile:grid-cols-1 gap-4">
+                {[
+                  { ph: "Party Name *", key: "name" },
+                  { ph: "Address", key: "address" },
+                  { ph: "GSTIN", key: "gstin" },
+                  { ph: "L.R. Number", key: "lr_number" },
+                  { ph: "From (default: SIVAKASI)", key: "from" },
+                  { ph: "To *", key: "to" },
+                  { ph: "Through *", key: "through" },
+                ].map(field => (
+                  <input
+                    key={field.key}
+                    type="text"
+                    placeholder={field.ph}
+                    value={customer[field.key]}
+                    onChange={e => setCustomer({ ...customer, [field.key]: e.target.value })}
+                    className="px-6 py-5 hundred:py-6 mobile:py-4 text-lg hundred:text-xl mobile:text-base border-2 border-gray-200 dark:border-gray-700 rounded-xl focus:ring-4 focus:ring-indigo-300 dark:focus:ring-indigo-700 outline-none transition text-black dark:text-white"
+                  />
+                ))}
               </div>
             )}
           </div>
 
-          {/* Cart Table */}
+          {/* Cart */}
           {cart.length > 0 && (
-            <div className="bg-white rounded-xl shadow-lg p-6 mobile:p-4 mb-8 overflow-x-auto hundred:w-full onefifty:w-full mobile:w-[405px]">
-              <h3 className="text-2xl mobile:text-xl font-bold mb-4 mobile:mb-3 text-gray-800">Cart Items</h3>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm mobile:text-xs border-collapse">
-                  <thead>
-                    <tr className="bg-gradient-to-r from-gray-800 to-gray-900 text-white text-lg mobile:text-sm">
-                      <th className="p-3 mobile:p-2 border">S.No</th>
-                      <th className="p-3 mobile:p-2 border">Brand</th>
-                      <th className="p-3 mobile:p-2 border">Product</th>
-                      <th className="p-3 mobile:p-2 border">Cases</th>
-                      <th className="p-3 mobile:p-2 border">Per</th>
-                      <th className="p-3 mobile:p-2 border">Qty</th>
-                      <th className="p-3 mobile:p-2 border">Godown</th>
-                      <th className="p-3 mobile:p-2 border">Action</th>
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-8 mobile:p-5 mb-10">
+              <h3 className="text-3xl mobile:text-2xl font-bold mb-6 text-black dark:text-white">Cart ({cart.length})</h3>
+              <div className="overflow-x-auto rounded-xl">
+                <table className="w-full">
+                  <thead className="bg-gradient-to-r from-indigo-700 to-purple-800 text-white">
+                    <tr>
+                      {["S.No", "Brand", "Product", "Cases", "Per", "Qty", "Godown", "Remove"].map(h => (
+                        <th key={h} className="px-6 py-4 text-center font-bold text-lg hundred:text-xl mobile:text-base">{h}</th>
+                      ))}
                     </tr>
                   </thead>
                   <tbody>
                     {cart.map((item, i) => (
-                      <tr key={i} className="hover:bg-gray-50 transition text-lg mobile:text-sm font-semibold">
-                        <td className="p-3 mobile:p-2 border text-center font-medium">{i + 1}</td>
-                        <td className="p-3 mobile:p-2 border text-center  text-black">{item.brand || '-'}</td>
-                        <td className="p-3 mobile:p-2 text-center border">{item.productname}</td>
-                        <td className="p-3 mobile:p-2 border text-center">
+                      <tr key={i} className="border-b hover:bg-gray-50 dark:hover:bg-gray-700 transition text-black dark:text-white">
+                        <td className="px-6 py-5 text-center text-lg hundred:text-xl mobile:text-base">{i + 1}</td>
+                        <td className="px-6 py-5 text-center text-lg hundred:text-xl mobile:text-base">{item.brand || '-'}</td>
+                        <td className="px-6 py-5 text-center font-semibold text-lg hundred:text-xl mobile:text-base">{item.productname}</td>
+                        <td className="px-6 py-5 text-center">
                           <input
                             type="number"
                             min="1"
-                            max={item.current_cases || 999}
+                            max={item.current_cases}
                             value={item.cases}
                             onChange={e => updateCases(i, parseInt(e.target.value) || 1)}
-                            className="w-20 mobile:w-16 p-2 mobile:p-1.5 border-2 rounded-lg text-center font-bold focus:ring-4 focus:ring-blue-300 focus:border-blue-600 outline-none"
-                            autoFocus={i === cart.length - 1}
+                            className="w-24 px-4 py-3 text-center border-2 rounded-lg font-bold text-lg hundred:text-xl mobile:text-base focus:ring-4 focus:ring-blue-300"
                           />
                         </td>
-                        <td className="p-3 mobile:p-2 border text-center">{item.per_case || 1}</td>
-                        <td className="p-3 mobile:p-2 border border-black text-center font-bold text-green-600">{item.cases * (item.per_case || 1)}</td>
-                        <td className="p-3 mobile:p-2 border border-black text-center text-red-600 font-bold">{item.godown}</td>
-                        <td className="p-3 mobile:p-2 border text-center">
-                          <button onClick={() => removeFromCart(i)} className="text-red-600 hover:text-red-800 text-lg mobile:text-base"><FaTrash /></button>
+                        <td className="px-6 py-5 text-center text-lg hundred:text-xl mobile:text-base">{item.per_case || 1}</td>
+                        <td className="px-6 py-5 text-center font-bold text-green-600 text-xl hundred:text-2xl mobile:text-lg">
+                          {item.cases * (item.per_case || 1)}
+                        </td>
+                        <td className="px-6 py-5 text-center font-bold text-red-600 text-xl hundred:text-2xl mobile:text-lg">{item.godown}</td>
+                        <td className="px-6 py-5 text-center">
+                          <button onClick={() => removeFromCart(i)} className="text-red-600 hover:text-red-800 text-2xl">
+                            <FaTrash />
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -288,29 +378,38 @@ export default function Delivery() {
             </div>
           )}
 
-          {/* Global Search */}
-          <div className="bg-white p-6 mobile:p-4 rounded-xl shadow mb-6">
-            <div className="relative mb-4">
-              <FaSearch className="absolute left-4 mobile:left-3 top-4 mobile:top-3.5 text-gray-500 text-xl mobile:text-lg" />
+          {/* Search */}
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-8 mobile:p-5 mb-10">
+            <div className="relative">
+              <FaSearch className="absolute left-6 top-6 text-gray-500 text-2xl" />
               <input
-                placeholder="Search products..."
+                type="text"
+                placeholder="Search products across all godowns..."
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                className="w-full pl-12 mobile:pl-10 pr-4 py-4 mobile:py-3.5 border-2 rounded-xl text-lg mobile:text-base focus:ring-4 focus:ring-blue-300 outline-none"
+                className="w-full pl-16 pr-8 py-6 text-xl hundred:text-2xl mobile:text-lg border-2 border-gray-200 dark:border-gray-700 rounded-2xl focus:ring-4 focus:ring-indigo-400 outline-none transition text-black dark:text-white"
               />
+              {globalLoading && <FaSpinner className="absolute right-6 top-7 animate-spin text-indigo-600 text-2xl" />}
             </div>
+
             {globalProducts.length > 0 && (
-              <div className="max-h-64 mobile:max-h-56 overflow-y-auto border-2 rounded-xl bg-gray-50">
+              <div className="mt-6 max-h-96 overflow-y-auto border-2 border-gray-200 dark:border-gray-700 rounded-xl">
                 {globalProducts.map(p => (
-                  <div key={p.id} className="p-4 mobile:p-3 border-b hover:bg-blue-50 cursor-pointer transition text-sm mobile:text-xs" onClick={() => { addToCart(p); setSearchQuery(''); setGlobalProducts([]); }}>
+                  <div
+                    key={p.id}
+                    onClick={() => { addToCart(p); setSearchQuery(''); setGlobalProducts([]); }}
+                    className="p-6 border-b hover:bg-indigo-50 dark:hover:bg-gray-700 cursor-pointer transition"
+                  >
                     <div className="flex justify-between items-center">
                       <div>
-                        <strong className="text-lg mobile:text-base">{p.productname}</strong>
-                        <span className="text-blue-700 font-medium ml-2 mobile:ml-1 text-sm mobile:text-xs">({p.brand})</span>
+                        <strong className="text-2xl hundred:text-3xl mobile:text-xl text-black dark:text-white">{p.productname}</strong>
+                        <span className="text-indigo-600 font-bold ml-4 text-lg hundred:text-xl mobile:text-base">({p.brand})</span>
                       </div>
                       <div className="text-right">
-                        <div className="font-bold text-red-600 text-base mobile:text-sm">{p.shortGodown}</div>
-                        <div className="text-xs mobile:text-[10px]">Cases: {p.current_cases} • ₹{p.rate_per_box}/box</div>
+                        <div className="text-red-600 font-bold text-2xl hundred:text-3xl mobile:text-xl">{p.shortGodown}</div>
+                        <div className="text-gray-600 dark:text-gray-400 text-base hundred:text-lg mobile:text-sm">
+                          {p.current_cases} cases • ₹{p.rate_per_box}/box
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -319,30 +418,74 @@ export default function Delivery() {
             )}
           </div>
 
-          <Select options={godowns} value={selectedGodown} onChange={setSelectedGodown} placeholder="Select Godown" className="mb-8 mobile:mb-6 text-base mobile:text-sm" />
+          {/* Godown Selector */}
+          <div className="mb-10">
+            <Select
+              options={godowns}
+              value={selectedGodown}
+              onChange={setSelectedGodown}
+              placeholder="Select Godown to view stock"
+              className="text-lg hundred:text-xl mobile:text-base"
+              styles={{ control: base => ({ ...base, padding: 8, borderRadius: 16 }) }}
+            />
+          </div>
 
-          {selectedGodown && stock.length > 0 && (
-            <div className="grid grid-cols-2 mobile:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5 mobile:gap-4 mb-10">
-              {stock.map(item => (
-                <div key={item.id} className="border-2 rounded-xl p-5 mobile:p-4 bg-white shadow hover:shadow-xl transition text-sm mobile:text-xs">
-                  <h4 className="font-bold text-base mobile:text-sm text-gray-800 truncate">{item.productname}</h4>
-                  <p className="text-gray-600 mt-1">Brand: <span className="font-semibold text-blue-700">{item.brand || 'N/A'}</span></p>
-                  <p className="text-gray-600">Cases Left: <span className="font-bold text-green-600">{item.current_cases}</span></p>
-                  <button onClick={() => addToCart(item)} className="mt-4 w-full bg-gradient-to-r from-blue-600 to-indigo-700 text-white font-bold py-3 mobile:py-2.5 rounded-lg hover:from-blue-700 hover:to-indigo-800 transition text-sm mobile:text-xs">
-                    Add to Cart
-                  </button>
+          {/* Stock Grid */}
+          {selectedGodown && (
+            <div className="mb-16">
+              {stockLoading ? (
+                <div className="text-center py-20">
+                  <FaSpinner className="mx-auto text-6xl text-indigo-600 animate-spin" />
+                  <p className="mt-6 text-2xl text-black dark:text-white">Loading stock...</p>
                 </div>
-              ))}
+              ) : stock.length > 0 ? (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-8">
+                  {stock.map(item => (
+                    <div
+                      key={item.id}
+                      className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6 hover:shadow-2xl transform hover:-translate-y-2 transition duration-300"
+                    >
+                      <h4 className="font-bold text-xl hundred:text-2xl mobile:text-lg text-black dark:text-white truncate">
+                        {item.productname}
+                      </h4>
+                      <p className="text-gray-600 dark:text-gray-400 mt-3 text-lg hundred:text-xl mobile:text-base">
+                        Brand: <span className="font-bold text-indigo-600">{item.brand || 'N/A'}</span>
+                      </p>
+                      <p className="text-gray-600 dark:text-gray-400 text-lg hundred:text-xl mobile:text-base">
+                        Cases: <span className="font-bold text-green-600">{item.current_cases}</span>
+                      </p>
+                      <button
+                        onClick={() => addToCart(item)}
+                        className="mt-6 w-full bg-gradient-to-r from-indigo-600 to-purple-700 hover:from-indigo-700 hover:to-purple-800 text-white font-bold py-4 rounded-xl text-lg hundred:text-xl mobile:text-base transition transform hover:scale-105 shadow-lg"
+                      >
+                        Add to Cart
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-20 bg-gray-50 dark:bg-gray-800 rounded-2xl">
+                  <p className="text-3xl font-bold text-gray-500 dark:text-gray-400">
+                    No products found in this godown
+                  </p>
+                  <p className="mt-4 text-xl text-gray-400">Try selecting another godown</p>
+                </div>
+              )}
             </div>
           )}
 
-          <div className="flex justify-center mt-12 mobile:mt-8">
+          {/* Generate Button */}
+          <div className="flex justify-center mt-12 mobile:mt-8 mb-10">
             <button
               onClick={generateChallan}
               disabled={loading || cart.length === 0}
-              className="w-full mobile:w-11/12 max-w-2xl bg-gradient-to-r from-cyan-500 to-blue-700 text-white font-bold py-6 mobile:py-5 text-2xl mobile:text-xl rounded-3xl shadow-2xl hover:shadow-cyan-500/50 disabled:opacity-50"
+              className="px-12 py-5 mobile:px-8 mobile:py-4 bg-green-500 disabled:from-gray-400 disabled:to-gray-500 text-white font-bold text-xl hundred:text-2xl mobile:text-lg rounded-2xl shadow-2xl transition transform hover:scale-105 disabled:scale-100"
             >
-              {loading ? <>Generating... <FaSpinner className="inline ml-3 animate-spin" /></> : 'Generate Delivery Challan'}
+              {loading ? (
+                <>Generating... <FaSpinner className="inline ml-3 animate-spin" /></>
+              ) : (
+                "Generate Challan"
+              )}
             </button>
           </div>
         </div>
@@ -351,25 +494,22 @@ export default function Delivery() {
       {/* PDF Modal */}
       {showPDF && pdfData && (
         <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4 mobile:p-2">
-          <div className="bg-white rounded-3xl w-full max-w-5xl mobile:max-w-full mobile:mx-2 h-5/6 mobile:h-full flex flex-col shadow-2xl">
-            <div className="bg-gradient-to-r from-cyan-600 to-blue-700 text-white p-6 mobile:p-4 rounded-t-3xl mobile:rounded-t-xl flex justify-between items-center">
-              <h3 className="text-3xl mobile:text-xl font-bold">Delivery Challan: {pdfData.challan_number}</h3>
-              <button onClick={() => setShowPDF(false)} className="text-5xl mobile:text-4xl hover:text-red-300">×</button>
+          <div className="bg-white dark:bg-gray-900 rounded-3xl w-full max-w-5xl mobile:max-w-full mobile:mx-2 h-5/6 mobile:h-full flex flex-col shadow-2xl overflow-hidden">
+            <div className="bg-gradient-to-r from-cyan-600 to-blue-700 text-white p-6 mobile:p-4 flex justify-between items-center">
+              <h3 className="text-4xl mobile:text-2xl font-bold">Challan: {pdfData.challan_number}</h3>
+              <button onClick={() => setShowPDF(false)} className="text-6xl mobile:text-5xl hover:text-red-300">×</button>
             </div>
+
             <PDFViewer width="100%" height="100%" className="flex-1">
               <ChallanPDF data={pdfData} />
             </PDFViewer>
-            <div className="p-6 mobile:p-4 bg-gray-100 text-center">
+
+            <div className="p-6 mobile:p-4 bg-gray-100 dark:bg-gray-800 text-center">
               <button
-                onClick={async () => {
-                  const blob = await pdf(<ChallanPDF data={pdfData} />).toBlob();
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement('a');
-                  a.href = url; a.download = `Challan_${pdfData.challan_number}.pdf`; a.click();
-                }}
-                className="bg-green-600 hover:bg-green-700 text-white px-10 mobile:px-8 py-4 mobile:py-3 rounded-xl font-bold text-xl mobile:text-lg shadow-lg"
+                onClick={manualDownload}
+                className="bg-green-600 hover:bg-green-700 text-white px-12 py-4 rounded-2xl font-bold text-xl shadow-lg transition flex items-center gap-3 mx-auto"
               >
-                Download PDF
+                <FaDownload className="text-2xl" /> Download PDF Again
               </button>
             </div>
           </div>
