@@ -467,7 +467,7 @@ export default function Booking() {
             </button>
 
             {showPendingDropdown && (
-              <div className="absolute right-0 mt-3 w-96 bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+              <div className="absolute right-0 mt-3 w-96 mobile:w-80 bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden">
                 <div className="p-4 bg-gradient-to-r from-yellow-500 to-orange-600 text-white font-bold text-lg">
                   Pending Challans ({pendingChallans.length})
                 </div>
