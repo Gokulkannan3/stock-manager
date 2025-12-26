@@ -1,4 +1,3 @@
-// src/Admin/StockAnalysis/StockAnalysis.jsx
 import React, { useState, useEffect } from 'react';
 import Sidebar from '../Sidebar/Sidebar';
 import Logout from '../Logout';
@@ -40,7 +39,6 @@ export default function StockAnalysis() {
   const downloadExcel = () => {
     const wb = XLSX.utils.book_new();
 
-    /* ---------- 1. Current Stock (all rows) ---------- */
     const currentWS = XLSX.utils.json_to_sheet(
       data.allRows.map((r, i) => ({
         '#': i + 1,
@@ -56,7 +54,6 @@ export default function StockAnalysis() {
     );
     XLSX.utils.book_append_sheet(wb, currentWS, 'Current Stock');
 
-    /* ---------- 2. Low Stock ---------- */
     const lowWS = XLSX.utils.json_to_sheet(
       data.lowStock.map((r, i) => ({
         '#': i + 1,
@@ -69,7 +66,6 @@ export default function StockAnalysis() {
     );
     XLSX.utils.book_append_sheet(wb, lowWS, 'Low Stock');
 
-    /* ---------- 3. Godown Totals ---------- */
     const godownWS = XLSX.utils.json_to_sheet(
       data.godownSummary.map((r, i) => ({
         '#': i + 1,
@@ -79,7 +75,6 @@ export default function StockAnalysis() {
     );
     XLSX.utils.book_append_sheet(wb, godownWS, 'Godown Totals');
 
-    /* ---------- 4. Product Totals ---------- */
     const productWS = XLSX.utils.json_to_sheet(
       data.productSummary.map((r, i) => ({
         '#': i + 1,
@@ -96,9 +91,6 @@ export default function StockAnalysis() {
     XLSX.writeFile(wb, `Stock_Analysis_${new Date().toISOString().slice(0,10)}.xlsx`);
   };
 
-  // ──────────────────────────────────────────────────────────────
-  // NEW LOADER (centered spinner + sidebar)
-  // ──────────────────────────────────────────────────────────────
   if (loading) {
     return (
       <div className="flex min-h-screen bg-gray-100 dark:bg-gray-900">
@@ -116,9 +108,6 @@ export default function StockAnalysis() {
 
   if (error) return <div className="p-8 text-center text-red-600 text-lg mobile:text-base">{error}</div>;
 
-  // ──────────────────────────────────────────────────────────────
-  // Rest of your component (unchanged)
-  // ──────────────────────────────────────────────────────────────
   return (
     <div className="flex min-h-screen bg-gray-100 dark:bg-gray-900">
       <Sidebar />
@@ -139,7 +128,6 @@ export default function StockAnalysis() {
             </button>
           </div>
 
-          {/* Low Stock Alert */}
           {data.lowStock.length > 0 && (
             <div className="mb-8 mobile:mb-6 p-5 mobile:p-4 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800-dark-800 rounded-lg">
               <div className="flex mobile:flex-col mobile:gap-2 items-start justify-between mb-3 mobile:mb-2">
@@ -162,7 +150,6 @@ export default function StockAnalysis() {
             </div>
           )}
 
-          {/* Grand Totals */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mobile:gap-4 mb-8 mobile:mb-6">
             <div className="bg-gradient-to-r from-blue-500 to-cyan-600 p-6 mobile:p-4 rounded-lg text-white">
               <p className="text-sm mobile:text-xs opacity-80">Products</p>
@@ -178,7 +165,6 @@ export default function StockAnalysis() {
             </div>
           </div>
 
-          {/* Godown Summary */}
           <div className="mb-8 mobile:mb-6">
             <h2 className="text-xl mobile:text-lg font-semibold mb-4 mobile:mb-3 text-gray-800 dark:text-gray-200">
               Total Cases per Godown
@@ -209,7 +195,6 @@ export default function StockAnalysis() {
             </div>
           </div>
 
-          {/* Product Summary */}
           <div>
             <h2 className="text-xl mobile:text-lg font-semibold mb-4 mobile:mb-3 text-gray-800 dark:text-gray-200">
               Total Cases per Product
@@ -244,7 +229,6 @@ export default function StockAnalysis() {
             </div>
           </div>
 
-          {/* Low Stock Modal */}
           <Modal
             isOpen={lowStockModal}
             onRequestClose={() => setLowStockModal(false)}

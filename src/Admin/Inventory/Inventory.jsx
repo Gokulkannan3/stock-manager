@@ -7,7 +7,6 @@ import Modal from 'react-modal';
 
 Modal.setAppElement('#root');
 
-// Floating Label Input — moves label ONLY on focus (not on value)
 const FloatingLabelInput = ({ value, onChange, placeholder, type = "text", className = "", ...props }) => {
   const [isFocused, setIsFocused] = useState(false);
   const inputRef = useRef(null);
@@ -211,7 +210,7 @@ export default function Inventory() {
       <Sidebar />
       <Logout />
 
-      <div className="flex-1 p-4 mobile:p-3 pt-16 mobile:pt-14 md:p-8 md:ml-64">
+      <div className="flex-1 p-4 mobile:p-3 pt-16 mobile:pt-14 md:p-8">
         <div className="hundred:max-w-7xl tab:max-w-7xl mx-auto">
           <h1 className="text-3xl mobile:text-2xl font-bold text-center mb-8 text-black dark:text-white">
             Inventory Management
@@ -256,7 +255,6 @@ export default function Inventory() {
               )}
             </div>
 
-            {/* Add Product Type */}
             <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl overflow-hidden">
               <button
                 onClick={() => setIsTypeSectionOpen(prev => !prev)}
@@ -289,7 +287,6 @@ export default function Inventory() {
             </div>
           </div>
 
-          {/* STEP 1: SELECT BRAND FIRST */}
           <div className="bg-white dark:bg-gray-800 p-8 mobile:p-6 rounded-xl shadow-lg mb-8">
             <label className="block text-lg mobile:text-base font-bold mb-4 text-black dark:text-white">
               Step 1: Select Brand
@@ -312,7 +309,6 @@ export default function Inventory() {
             </select>
           </div>
 
-          {/* STEP 2: SELECT PRODUCT TYPE */}
           {selectedBrand && (
             <div className="bg-white dark:bg-gray-800 p-8 mobile:p-6 rounded-xl shadow-lg mb-8">
               <label className="block text-lg mobile:text-base font-bold mb-4 text-black dark:text-white">
@@ -331,7 +327,6 @@ export default function Inventory() {
             </div>
           )}
 
-          {/* STEP 3: PRODUCT FORM */}
           {selectedBrand && selectedType && (
             <div className="bg-white dark:bg-gray-800 p-8 mobile:p-6 rounded-xl shadow-lg mb-10">
               <h3 className="text-xl mobile:text-lg font-bold mb-6 text-blue-600 dark:text-blue-400">
@@ -370,7 +365,6 @@ export default function Inventory() {
             </div>
           )}
 
-          {/* ALL BRANDS GRID */}
           <div className="bg-white dark:bg-gray-800 p-8 mobile:p-6 rounded-xl shadow-lg">
             <h3 className="text-2xl mobile:text-xl font-bold mb-6 text-black dark:text-white">All Brands</h3>
             <FloatingLabelInput
@@ -415,7 +409,6 @@ export default function Inventory() {
         </div>
       </div>
 
-      {/* Edit Brand Modal */}
       <Modal isOpen={editModalOpen} onRequestClose={() => setEditModalOpen(false)}
         className="bg-white dark:bg-gray-800 rounded-xl p-8 mobile:p-6 max-w-md mx-4 shadow-2xl"
         overlayClassName="fixed inset-0 bg-black/60 flex items-center justify-center z-50">

@@ -4,7 +4,7 @@ import { NavLink } from "react-router-dom";
 import {
   FaBox, FaList, FaChartBar, FaSearch, FaChartLine, FaBars, FaTimes,
   FaPlus, FaWarehouse, FaAngleDown, FaAngleUp, FaUser, FaMoneyBill,
-  FaMoneyBillAlt, FaBook, FaTruck, FaCreditCard
+  FaMoneyBillAlt, FaBook, FaTruck, FaCreditCard, FaAddressBook, FaEye, FaIndustry
 } from "react-icons/fa";
 
 export default function Sidebar() {
@@ -12,7 +12,8 @@ export default function Sidebar() {
   const [isInventoryOpen, setIsInventoryOpen] = useState(false);
   const [isGodownOpen, setIsGodownOpen] = useState(false);
   const [isBillingOpen, setIsBillingOpen] = useState(false);
-  const [isAccountsOpen, setIsAccountsOpen] = useState(false); // New Accounts section
+  const [isAccountsOpen, setIsAccountsOpen] = useState(false);
+  const [isTaxOpen, setIsTaxOpen] = useState(false);
 
   const userType = localStorage.getItem("userType") || "worker";
 
@@ -27,6 +28,7 @@ export default function Sidebar() {
     analytics: userType === "admin",
     profile: userType === "admin",
     delivey: ["admin", "agent", "worker"].includes(userType),
+    tax: userType === 'admin'
   };
 
   // ────── Navigation Items ──────
@@ -69,6 +71,18 @@ export default function Sidebar() {
         { name: "Payments", path: "/payments", icon: <FaCreditCard className="mr-2" /> },
       ],
     },
+    {
+      name: "Tax Invoices",
+      allowed: can.tax,
+      icon: <FaAddressBook className="mr-2" />,
+      subItems: [
+        { name: "Inventory", path: "/taxinventory", icon: <FaBox className="mr-2" /> },
+        { name: "Create Company", path: "/createcompany", icon: <FaIndustry className="mr-2" /> },
+        { name: "View Company", path: "/viewcompany", icon: <FaEye className="mr-2" /> },
+        { name: "Tax Bills", path: "/taxbills", icon: <FaBook className="mr-2" /> },
+        { name: "All Bills", path: "/allbills", icon: <FaMoneyBill className="mr-2" /> }
+      ],
+    },
     { name: "Delivery Challan", path: "/delivery", icon: <FaTruck className="mr-2" />, allowed: can.delivey },
     { name: "Overall Stocks", path: "/analysis", icon: <FaChartBar className="mr-2" />, allowed: can.analysis },
     { name: "Search product", path: "/search", icon: <FaSearch className="mr-2" />, allowed: can.search },
@@ -82,6 +96,7 @@ export default function Sidebar() {
   const toggleGodown = () => setIsGodownOpen(!isGodownOpen);
   const toggleBilling = () => setIsBillingOpen(!isBillingOpen);
   const toggleAccounts = () => setIsAccountsOpen(!isAccountsOpen);
+  const toggleTax = () => setIsTaxOpen(!isTaxOpen);
 
   const getToggle = (name) => {
     switch (name) {
@@ -89,6 +104,7 @@ export default function Sidebar() {
       case "Godown": return { toggle: toggleGodown, isOpen: isGodownOpen };
       case "Billing": return { toggle: toggleBilling, isOpen: isBillingOpen };
       case "Accounts": return { toggle: toggleAccounts, isOpen: isAccountsOpen };
+      case "Tax Invoices": return { toggle: toggleTax, isOpen: isTaxOpen };
       default: return { toggle: () => {}, isOpen: false };
     }
   };

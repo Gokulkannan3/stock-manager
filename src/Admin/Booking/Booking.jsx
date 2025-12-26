@@ -36,10 +36,10 @@ const FloatingLabelInput = ({ value, onChange, placeholder, type = "text", class
       <label
         onClick={() => inputRef.current?.focus()}
         className={`absolute left-4 transition-all duration-200 pointer-events-none
-                   ${isActive
-                     ? '-top-3 text-xs font-medium text-blue-600 dark:text-blue-400 bg-white dark:bg-gray-800 px-2'
-                     : 'top-2.5 text-gray-500 dark:text-gray-400'
-                   }`}
+        ${isActive
+          ? '-top-3 text-xs font-medium text-blue-600 dark:text-blue-400 bg-white dark:bg-gray-800 px-2'
+          : 'top-2.5 text-gray-500 dark:text-gray-400'
+        }`}
       >
         {placeholder}
       </label>
@@ -339,7 +339,6 @@ export default function Booking() {
 
     try {
       if (fromChallan && challanId) {
-        // CHALLAN → BILL (no stock deduction)
         const res = await fetch(`${API_BASE_URL}/api/challan/${challanId}/convert`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -380,7 +379,6 @@ export default function Booking() {
         setChallanId(null);
         setCart([]);
       } else {
-        // NORMAL BILL → ALWAYS DEDUCT STOCK
         const payload = {
           customer_name: customer.name,
           address: customer.address,
@@ -409,7 +407,7 @@ export default function Booking() {
             godown: i.godown,
             rate_per_box: i.rate_per_box
           })),
-          is_direct_bill: true   // ← ALWAYS true for normal bills
+          is_direct_bill: true
         };
 
         const res = await fetch(`${API_BASE_URL}/api/booking`, {
@@ -431,7 +429,6 @@ export default function Booking() {
         setSuccess(`Bill Created: ${data.bill_number}`);
       }
 
-      // Reset form
       setCustomer({ name: '', address: '', gstin: '', lr_number: '', agent_name: '', from: 'SIVAKASI', to: '', through: '' });
       setSelectedCustomer(null);
       setAdditionalDiscount(0);
@@ -454,7 +451,6 @@ export default function Booking() {
       <Sidebar />
       <Logout />
 
-      {/* Notification Bell */}
       {pendingChallans.length > 0 && (
         <div className="fixed top-20 right-4 z-40">
           <div className="relative">
@@ -508,7 +504,6 @@ export default function Booking() {
       <div className="flex-1 p-4 pt-20 overflow-auto">
         <div className="max-w-7xl mx-auto space-y-8">
 
-          {/* FIXED: Removed billType reference */}
           <h2 className="text-3xl font-bold text-center">
             Create Bill
             {fromChallan && (
@@ -525,7 +520,6 @@ export default function Booking() {
 
           <div className="space-y-8">
 
-            {/* Customer Selection */}
             <div className="bg-white dark:bg-gray-800 p-3 mobile:p-4 rounded-lg shadow">
               <label className="block font-medium mb-1 text-black dark:text-white text-xs mobile:text-sm">Select Existing Customer (optional)</label>
               {loadingCustomers ? (
@@ -543,7 +537,6 @@ export default function Booking() {
               )}
             </div>
 
-            {/* Customer Details */}
             <div className={cardClass}>
               <button onClick={() => setIsCustomerDetailsOpen(!isCustomerDetailsOpen)} className="w-full p-6 flex justify-between items-center text-lg font-bold bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-t-xl">
                 Customer Details {isCustomerDetailsOpen ? <FaChevronUp /> : <FaChevronDown />}
@@ -562,7 +555,6 @@ export default function Booking() {
               )}
             </div>
 
-            {/* Cart Summary */}
             {cart.length > 0 && (
               <div className={`${cardClass} p-8`}>
                 <h3 className={`text-xl font-bold mb-6 ${textClass}`}>Cart Items ({cart.length})</h3>
@@ -683,7 +675,6 @@ export default function Booking() {
               </div>
             )}
 
-            {/* Global Search */}
             <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg">
               <label className="block font-bold mb-3 text-black dark:text-white text-lg">Search Products (All Godowns)</label>
               <div className="relative">
@@ -717,7 +708,6 @@ export default function Booking() {
               )}
             </div>
 
-            {/* Godown Selection */}
             <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg">
               <label className="block font-bold mb-3 text-black dark:text-white text-lg">
                 Selected Godown: <span className="text-blue-600">{selectedGodown ? selectedGodown.label : 'None'}</span>
@@ -736,7 +726,6 @@ export default function Booking() {
               )}
             </div>
 
-            {/* Stock Grid */}
             {selectedGodown && (
               <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg">
                 <h3 className="text-2xl font-bold mb-6 text-black dark:text-white">Available Stock in {selectedGodown.label}</h3>
@@ -769,7 +758,6 @@ export default function Booking() {
               </div>
             )}
 
-            {/* Generate Button */}
             <div className='flex justify-center'>
               <button
                 onClick={submitBooking}
@@ -786,8 +774,7 @@ export default function Booking() {
           </div>
         </div>
       </div>
-
-      {/* PDF Modal */}
+      
       <Modal isOpen={showPDFModal} onRequestClose={() => setShowPDFModal(false)} className="bg-white dark:bg-gray-800 rounded-2xl shadow-4xl max-w-5xl h-[80%] w-full mx-4 my-8 outline-none overflow-hidden" overlayClassName="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
         <div className="flex flex-col h-full max-h-screen">
           <div className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white p-6 flex justify-between items-center">

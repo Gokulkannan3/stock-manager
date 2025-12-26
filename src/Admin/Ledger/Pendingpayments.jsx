@@ -1,5 +1,4 @@
-// src/pages/Payments/PendingPayments.jsx
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { API_BASE_URL } from '../../../Config';
 import DatePicker from 'react-datepicker';
@@ -176,7 +175,6 @@ export default function PendingPayments() {
           </div>
         )}
 
-        {/* Payment Modal */}
         {modal && booking && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
             <div className="bg-white dark:bg-gray-800 p-6 rounded w-full max-w-md shadow-xl">
@@ -255,7 +253,6 @@ export default function PendingPayments() {
           </div>
         )}
 
-        {/* History Modal */}
         {historyModal && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
             <div className="bg-white dark:bg-gray-800 p-6 rounded w-full max-w-md shadow-xl max-h-96 overflow-y-auto">

@@ -8,9 +8,8 @@ import Select from 'react-select';
 export default function Godown() {
   const [godowns, setGodowns] = useState([]);
   const [brands, setBrands] = useState([]);
-  const [allProducts, setAllProducts] = useState([]); // Keep full list
+  const [allProducts, setAllProducts] = useState([]);
 
-  // Per-row state (each row has its own filters)
   const [rows, setRows] = useState([
     { id: Date.now(), godown: null, brand: null, productType: null, product: null, cases: '' }
   ]);
@@ -20,7 +19,6 @@ export default function Godown() {
   const [loading, setLoading] = useState(false);
   const [newGodownName, setNewGodownName] = useState('');
 
-  /* ---------- STYLES ---------- */
   const styles = {
     input: {
       background: "linear-gradient(135deg, rgba(255,255,255,0.8), rgba(240,249,255,0.6))",
@@ -38,7 +36,6 @@ export default function Godown() {
   const capitalize = (str) =>
     str ? str.toLowerCase().replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : '';
 
-  /* ---------- FETCH DATA ---------- */
   const fetchGodowns = useCallback(async () => {
     try {
       const res = await fetch(`${API_BASE_URL}/api/godowns`);
@@ -82,7 +79,6 @@ export default function Godown() {
     fetchAllProducts();
   }, [fetchGodowns, fetchBrands, fetchAllProducts]);
 
-  /* ---------- HELPER: Get Product Types for a Brand ---------- */
   const getProductTypesForBrand = (brandValue) => {
     if (!brandValue) return [];
     const types = [...new Set(
@@ -97,7 +93,6 @@ export default function Godown() {
     }));
   };
 
-  /* ---------- HELPER: Get Products for Brand + Type ---------- */
   const getProductsForBrandAndType = (brandValue, typeValue) => {
     if (!brandValue || !typeValue) return [];
     return allProducts.filter(p =>
@@ -106,7 +101,6 @@ export default function Godown() {
     );
   };
 
-  /* ---------- ROW MANAGEMENT ---------- */
   const addRow = () => {
     setRows(prev => [...prev, {
       id: Date.now(),
@@ -145,7 +139,6 @@ export default function Godown() {
     return isNaN(c) ? 0 : product.per_case * c;
   };
 
-  /* ---------- CREATE GODOWN ---------- */
   const handleCreateGodown = async () => {
     if (!newGodownName.trim()) return setError('Name required');
     setLoading(true); setError('');
@@ -158,21 +151,18 @@ export default function Godown() {
       const d = await res.json();
       if (!res.ok) throw new Error(d.message || 'Failed');
 
-      // Instantly add the new godown to the dropdown (cache)
       const newGodown = {
-        value: d.id || d.godown_id || Date.now(), // backend may return id in different key
+        value: d.id || d.godown_id || Date.now(),
         label: capitalize(newGodownName.trim()),
       };
       setGodowns(prev => [...prev, newGodown]);
 
       setSuccess('Godown created');
       setNewGodownName('');
-      // No need to refetch – already cached
     } catch (e) { setError(e.message || 'Failed'); }
     finally { setLoading(false); }
   };
 
-  /* ---------- BULK ADD STOCK ---------- */
   const handleBulkAddStock = async () => {
     const validRows = rows.filter(r =>
       r.godown && r.product && r.cases && parseInt(r.cases, 10) > 0
@@ -206,7 +196,6 @@ export default function Godown() {
     finally { setLoading(false); }
   };
 
-  /* ---------- SELECT STYLES ---------- */
   const customSelectStyles = {
     control: (p, s) => ({
       ...p,
@@ -251,7 +240,6 @@ export default function Godown() {
 
           <div className="space-y-8">
 
-            {/* Create Godown */}
             <div className="bg-white dark:bg-gray-800 p-5 rounded-lg shadow">
               <h3 className="text-lg font-semibold mb-3">Create New Godown</h3>
               <div className="flex gap-3">
@@ -270,14 +258,12 @@ export default function Godown() {
               </div>
             </div>
 
-            {/* Allocation Rows */}
             <div className="space-y-6">
               <h3 className="text-lg font-semibold">Add Stock Allocations</h3>
 
               {rows.map((row, idx) => (
                 <div key={row.id} className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow border border-gray-200 dark:border-gray-700 relative">
 
-                  {/* Godown */}
                   <div className="mb-4">
                     <label className="block text-sm font-medium mb-2">Godown {rows.length > 1 && `#${idx + 1}`}</label>
                     <Select
@@ -291,7 +277,6 @@ export default function Godown() {
                     />
                   </div>
 
-                  {/* Brand */}
                   <div className="mb-4">
                     <label className="block text-sm font-medium mb-2">Brand</label>
                     <Select
@@ -305,7 +290,6 @@ export default function Godown() {
                     />
                   </div>
 
-                  {/* Product Type - Dynamic */}
                   <div className="mb-4">
                     <label className="block text-sm font-medium mb-2">Product Type</label>
                     <Select
@@ -320,7 +304,6 @@ export default function Godown() {
                     />
                   </div>
 
-                  {/* Product - Dynamic */}
                   <div className="mb-4">
                     <label className="block text-sm font-medium mb-2">Product</label>
                     <Select
@@ -339,7 +322,6 @@ export default function Godown() {
                     />
                   </div>
 
-                  {/* Cases & Total */}
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium mb-2">Cases</label>
@@ -361,7 +343,6 @@ export default function Godown() {
                     </div>
                   </div>
 
-                  {/* Buttons inside the card */}
                   <div className="mt-6 flex justify-center gap-5 items-center">
                     <button
                       onClick={addRow}
@@ -380,7 +361,6 @@ export default function Godown() {
                 </div>
               ))}
 
-              {/* Final Submit Button */}
               <button
                 onClick={handleBulkAddStock}
                 disabled={loading}

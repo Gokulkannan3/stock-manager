@@ -6,7 +6,6 @@ import Select from 'react-select';
 import Sidebar from '../Sidebar/Sidebar';
 import Logout from '../Logout';
 
-// PDF Styles
 const pdfStyles = StyleSheet.create({
   page: { padding: 40 },
   title: { fontSize: 36, textAlign: "center", marginBottom: 6, fontWeight: "bold", color: "#b91c1c" },
@@ -238,7 +237,6 @@ export default function Delivery() {
       setShowPDF(true);
       setSuccess(`Challan ${data.challan_number} created successfully!`);
 
-      // Auto Download PDF (silently — no loading message)
       const blob = await pdf(<ChallanPDF data={fullData} />).toBlob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -249,7 +247,6 @@ export default function Delivery() {
       a.remove();
       URL.revokeObjectURL(url);
 
-      // Reset form
       setCart([]);
       setCustomer({ name: '', address: '', gstin: '', lr_number: '', from: 'SIVAKASI', to: '', through: '' });
     } catch (err) {
@@ -298,7 +295,6 @@ export default function Delivery() {
             </div>
           )}
 
-          {/* Customer Details */}
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl overflow-hidden mb-20">
             <button
               onClick={() => setIsCustomerOpen(!isCustomerOpen)}
@@ -331,7 +327,6 @@ export default function Delivery() {
             )}
           </div>
 
-          {/* Cart */}
           {cart.length > 0 && (
             <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-8 mobile:p-5 mb-10">
               <h3 className="text-3xl mobile:text-2xl font-bold mb-6 text-black dark:text-white">Cart ({cart.length})</h3>
@@ -378,7 +373,6 @@ export default function Delivery() {
             </div>
           )}
 
-          {/* Search */}
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-8 mobile:p-5 mb-10">
             <div className="relative">
               <FaSearch className="absolute left-6 top-6 text-gray-500 text-2xl" />
@@ -418,7 +412,6 @@ export default function Delivery() {
             )}
           </div>
 
-          {/* Godown Selector */}
           <div className="mb-10">
             <Select
               options={godowns}
@@ -430,7 +423,6 @@ export default function Delivery() {
             />
           </div>
 
-          {/* Stock Grid */}
           {selectedGodown && (
             <div className="mb-16">
               {stockLoading ? (
@@ -474,7 +466,6 @@ export default function Delivery() {
             </div>
           )}
 
-          {/* Generate Button */}
           <div className="flex justify-center mt-12 mobile:mt-8 mb-10">
             <button
               onClick={generateChallan}
@@ -491,7 +482,6 @@ export default function Delivery() {
         </div>
       </div>
 
-      {/* PDF Modal */}
       {showPDF && pdfData && (
         <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4 mobile:p-2">
           <div className="bg-white dark:bg-gray-900 rounded-3xl w-full max-w-5xl mobile:max-w-full mobile:mx-2 h-5/6 mobile:h-full flex flex-col shadow-2xl overflow-hidden">

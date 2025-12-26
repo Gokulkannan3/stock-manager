@@ -1,4 +1,3 @@
-// src/pages/Dispatch/Dispatch.jsx
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { API_BASE_URL } from "../../../Config";
@@ -17,7 +16,6 @@ import { Document, Page, Text, View, StyleSheet, pdf } from "@react-pdf/renderer
 
 Modal.setAppElement("#root");
 
-// PDF Styles
 const pdfStyles = StyleSheet.create({
   page: { padding: 40, backgroundColor: "#fff" },
   mainTitle: { fontSize: 36, textAlign: "center", marginBottom: 6, fontWeight: "bold", color: "#b91c1c" },
@@ -56,11 +54,9 @@ const DeliveryChallanPDF = ({ booking, dispatches }) => {
   return (
     <Document>
       <Page size="A4" style={pdfStyles.page}>
-        {/* TITLE */}
         <Text style={pdfStyles.mainTitle}>DELIVERY CHALLAN</Text>
         <Text style={pdfStyles.tagline}>Goods Once Sold Will Not Be Taken Back or Exchanged</Text>
 
-        {/* CUSTOMER + CHALLAN NO/DATE (SIDE BY SIDE) */}
         <View style={pdfStyles.headerSection}>
           <View style={pdfStyles.customerInfo}>
             <Text style={pdfStyles.label}>To:</Text>
@@ -79,7 +75,6 @@ const DeliveryChallanPDF = ({ booking, dispatches }) => {
           </View>
         </View>
 
-        {/* PRODUCT TABLE */}
         <View style={pdfStyles.table}>
           <View style={pdfStyles.tableHeaderRow}>
             <Text style={[pdfStyles.th, { width: "7%" }]}>S.No</Text>
@@ -108,14 +103,12 @@ const DeliveryChallanPDF = ({ booking, dispatches }) => {
           ))}
         </View>
 
-        {/* TOTAL BOX */}
         <View style={pdfStyles.totalBox}>
           <Text style={pdfStyles.totalText}>
             Total Cases: {totalCases}  |  Total Quantity: {totalQty}
           </Text>
         </View>
 
-        {/* TRANSPORT DETAILS */}
         <View style={pdfStyles.transportBox}>
           <Text style={pdfStyles.transportTitle}>Transport Details</Text>
           <Text style={{ marginTop: 2 }}>From      : {booking.from || "SIVAKASI"}</Text>
@@ -126,7 +119,6 @@ const DeliveryChallanPDF = ({ booking, dispatches }) => {
           )}
         </View>
 
-        {/* FOOTER */}
         <Text style={pdfStyles.footer}>
           This is a computer-generated Delivery Challan • Subject to Sivakasi Jurisdiction
         </Text>
@@ -155,13 +147,10 @@ export default function Dispatch() {
       try {
         const [bookRes] = await Promise.all([
           axios.get(`${API_BASE_URL}/api/booking`),
-          // We don't need separate logs anymore — we'll get them from booking itself later
         ]);
 
-        // Now fetch FULL dispatch logs with all fields
         const logRes = await axios.get(`${API_BASE_URL}/api/dispatch_logs/all`);
 
-        // Build dispatched map: { booking_id: { product_index: total_cases_dispatched } }
         const dispatchedMapGlobal = {};
 
         logRes.data.forEach(log => {
@@ -271,7 +260,6 @@ export default function Dispatch() {
     try {
       setLoading(true);
 
-      // SAVE TO DATABASE WITH ALL NEEDED FIELDS
       await axios.post(`${API_BASE_URL}/api/dispatch`, {
         booking_id: selectedBooking.id,
         dispatches: toDispatch.map(d => ({
@@ -288,7 +276,6 @@ export default function Dispatch() {
         lr_number: selectedBooking.lr_number || null,
       });
 
-      // GENERATE PDF
       const blob = await pdf(
         <DeliveryChallanPDF
           booking={{
@@ -435,7 +422,6 @@ export default function Dispatch() {
         </div>
       </div>
 
-      {/* Dispatch Modal */}
       <Modal
         isOpen={isModalOpen}
         onRequestClose={closeModal}

@@ -1,4 +1,3 @@
-// src/pages/Admin/Admin.jsx
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { API_BASE_URL } from "../../../Config";
@@ -15,7 +14,7 @@ export default function Admin() {
   const [bankAccounts, setBankAccounts] = useState([]);
   const [newBankName, setNewBankName] = useState("");
   const [showAddBank, setShowAddBank] = useState(false);
-  const [targetAdminForBank, setTargetAdminForBank] = useState(null); // NEW
+  const [targetAdminForBank, setTargetAdminForBank] = useState(null);
   const [filterType, setFilterType] = useState("");
   const [showModal, setShowModal] = useState(false);
   const loggedIn = localStorage.getItem("username");
@@ -59,7 +58,6 @@ export default function Admin() {
     setShowModal(true);
   };
 
-  // NEW: Open Add Bank Modal for any admin
   const openAddBank = (admin) => {
     setTargetAdminForBank(admin);
     setNewBankName("");
@@ -80,13 +78,11 @@ export default function Admin() {
       setNewBankName("");
       setShowAddBank(false);
 
-      // Refresh bank list for selected admin
       if (selectedAdmin?.username === targetAdminForBank.username) {
         const { data } = await axios.get(`${API_BASE_URL}/api/admins/${targetAdminForBank.username}/bank-accounts`);
         setBankAccounts(data);
       }
 
-      // Refresh full admin list
       fetchAdmins();
       setTimeout(() => setSuccess(""), 3000);
     } catch (err) {
@@ -112,7 +108,6 @@ export default function Admin() {
       <div className="flex-1 p-6 md:ml-64">
         <h1 className="text-3xl font-bold text-center mb-8 text-black dark:text-white">Admin Panel</h1>
 
-        {/* Success / Error Alerts */}
         {success && (
           <div className="max-w-md mx-auto bg-green-100 p-3 rounded mb-4 text-center text-black">
             {success}
@@ -124,7 +119,6 @@ export default function Admin() {
           </div>
         )}
 
-        {/* Create Admin */}
         <div className="max-w-md mx-auto bg-white dark:bg-gray-800 p-6 rounded-lg shadow mb-8">
           <h2 className="text-xl font-bold mb-4 text-black dark:text-white">Create Admin</h2>
           <form onSubmit={createAdmin} className="space-y-4">
@@ -141,7 +135,6 @@ export default function Admin() {
           </form>
         </div>
 
-        {/* Admins Grid */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {admins.map((a) => (
             <div key={a.id} className="bg-white dark:bg-gray-800 p-5 rounded-lg shadow-lg hover:shadow-xl transition">
@@ -174,7 +167,6 @@ export default function Admin() {
           ))}
         </div>
 
-        {/* Add Bank Modal */}
         {showAddBank && targetAdminForBank && (
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
             <div className="bg-white dark:bg-gray-800 p-6 rounded-lg w-full max-w-md shadow-2xl">
@@ -213,7 +205,6 @@ export default function Admin() {
           </div>
         )}
 
-        {/* Transactions Modal */}
         {showModal && selectedAdmin && (
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
             <div className="bg-white dark:bg-gray-800 p-6 rounded-lg w-full max-w-5xl max-h-[85vh] overflow-auto shadow-2xl">
@@ -229,7 +220,6 @@ export default function Admin() {
                 </button>
               </div>
 
-              {/* Filter */}
               <div className="mb-4">
                 <select
                   value={filterType}
@@ -246,7 +236,6 @@ export default function Admin() {
                 </select>
               </div>
 
-              {/* Transactions Table */}
               <div className="overflow-x-auto">
                 <table className="w-full text-sm border-collapse">
                   <thead className="bg-gray-100 dark:bg-gray-700 sticky">

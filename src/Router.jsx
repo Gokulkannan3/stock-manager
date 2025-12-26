@@ -17,6 +17,11 @@ import Admin from './Admin/Ledger/Admin'
 import Dispatch from './Admin/Ledger/Dispatchs'
 import Pendingpayments from './Admin/Ledger/Pendingpayments'
 import Delivery from './Admin/Delivery/Delivery';
+import Inventoryt from './Admin/Tax/Inventoryt';
+import CompanyDetails from './Admin/Tax/CompanyDetails';
+import ViewCompanyDetails from './Admin/Tax/ViewCompanyDetails';
+import Billing from './Admin/Tax/Billing';
+import AllBillings from './Admin/Tax/Allbillings';
 
 const AllRoutes = () => {
   return (
@@ -46,6 +51,11 @@ const AllRoutes = () => {
         <Route path="/adm" element={<Admin />} />
         <Route path="/payments" element={<Pendingpayments />} />
         <Route path="/dispatch" element={<Dispatch />} />
+        <Route path="/taxinventory" element={<Inventoryt />} />
+        <Route path="/createcompany" element={<CompanyDetails />} />
+        <Route path="/viewcompany" element={<ViewCompanyDetails />} />
+        <Route path="/taxbills" element={<Billing />} />
+        <Route path="/allbills" element={<AllBillings />} />
       </Route>
     </Routes>
   );

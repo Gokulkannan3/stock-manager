@@ -1,4 +1,3 @@
-// src/pages/GodownDetail/GodownDetail.jsx
 import React, { useState, useEffect, useCallback } from 'react';
 import Modal from 'react-modal';
 import Sidebar from '../Sidebar/Sidebar';
@@ -71,7 +70,6 @@ export default function GodownDetail() {
   const capitalize = str =>
     str ? str.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') : '';
 
-  // FETCH ALL PRODUCTS
   const fetchAllProducts = useCallback(async () => {
     try {
       const res = await fetch(`${API_BASE_URL}/api/products`);
@@ -83,7 +81,6 @@ export default function GodownDetail() {
     }
   }, []);
 
-  // FETCH GODOWN + HISTORY
   const fetchGodown = async () => {
     setIsLoading(true);
     setIsLoadingHistory(true);

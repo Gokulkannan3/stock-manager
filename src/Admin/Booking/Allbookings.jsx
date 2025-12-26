@@ -1,4 +1,3 @@
-// src/pages/AllBookings/AllBookings.jsx
 import React, { useState, useEffect } from 'react';
 import Sidebar from '../Sidebar/Sidebar';
 import Logout from '../Logout';
@@ -15,17 +14,15 @@ export default function AllBookings() {
   const [showModal, setShowModal] = useState(false);
   const [pdfBlobUrl, setPdfBlobUrl] = useState('');
   const [loadingPDF, setLoadingPDF] = useState(false);
-  const [loading, setLoading] = useState(true); // Full page loading
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 16;
 
-  // FETCH ALL BOOKINGS
   useEffect(() => {
     fetch(`${API_BASE_URL}/api/booking`)
       .then(res => res.json())
       .then(data => {
-        // Sort by bill_date (newest first)
         const sorted = data.sort((a, b) => new Date(b.bill_date) - new Date(a.bill_date));
         setBookings(sorted);
         setFilteredBookings(sorted);
@@ -34,17 +31,15 @@ export default function AllBookings() {
       .finally(() => setLoading(false));
   }, []);
 
-  // SEARCH FILTER
   useEffect(() => {
     const query = searchQuery.toLowerCase().trim();
     const filtered = bookings.filter(b =>
       b.customer_name?.toLowerCase().includes(query)
     );
     setFilteredBookings(filtered);
-    setCurrentPage(1); // Reset to first page
+    setCurrentPage(1);
   }, [searchQuery, bookings]);
 
-  // PAGINATION
   const totalPages = Math.ceil(filteredBookings.length / itemsPerPage);
   const paginatedBookings = filteredBookings.slice(
     (currentPage - 1) * itemsPerPage,
@@ -57,7 +52,6 @@ export default function AllBookings() {
     }
   };
 
-  // VIEW PDF
   const viewBill = async (booking) => {
     setSelectedBill(booking);
     setShowModal(true);
@@ -85,14 +79,12 @@ export default function AllBookings() {
     link.click();
   };
 
-  // Clean up blob URL
   useEffect(() => {
     return () => {
       if (pdfBlobUrl) URL.revokeObjectURL(pdfBlobUrl);
     };
   }, [pdfBlobUrl]);
 
-  // FORMAT DATE SAFELY
   const formatDate = (dateString) => {
     if (!dateString) return '—';
     const date = new Date(dateString);
@@ -104,7 +96,6 @@ export default function AllBookings() {
     });
   };
 
-  // FULL LOADING SCREEN
   if (loading) {
     return (
       <div className="flex min-h-screen bg-gray-100 dark:bg-gray-900">
@@ -128,12 +119,10 @@ export default function AllBookings() {
       <div className="flex-1 p-4 pt-16 overflow-auto">
         <div className="max-w-7xl mx-auto">
 
-          {/* Header */}
           <h2 className="text-xl md:text-2xl font-bold text-center mb-4 text-gray-900 dark:text-gray-100">
             All Bookings
           </h2>
 
-          {/* Search Bar */}
           <div className="mb-6 relative max-w-md mx-auto">
             <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
             <input
@@ -145,12 +134,10 @@ export default function AllBookings() {
             />
           </div>
 
-          {/* Results Count */}
           <p className="text-center text-sm text-gray-600 dark:text-gray-400 mb-4">
             {filteredBookings.length} booking{filteredBookings.length !== 1 ? 's' : ''} found
           </p>
 
-          {/* Cards Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-6">
             {paginatedBookings.map(b => (
               <div
@@ -179,7 +166,6 @@ export default function AllBookings() {
             ))}
           </div>
 
-          {/* Pagination */}
           {totalPages > 1 && (
             <div className="flex justify-center items-center gap-2 mt-6">
               <button
@@ -218,7 +204,6 @@ export default function AllBookings() {
         </div>
       </div>
 
-      {/* PDF Modal */}
       <Modal
         isOpen={showModal}
         onRequestClose={() => setShowModal(false)}

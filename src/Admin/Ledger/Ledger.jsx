@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import axios from "axios";
 import { API_BASE_URL } from "../../../Config";
 import Sidebar from "../Sidebar/Sidebar";
@@ -329,7 +329,6 @@ ${allPayments.length ? `
         </div>
       </div>
 
-      {/* MODAL */}
       <Modal
         isOpen={!!selectedBooking}
         onRequestClose={closeModal}
@@ -426,7 +425,6 @@ ${allPayments.length ? `
                       </table>
                     </div>
 
-                    {/* TOTAL DISPATCHED VALUE – NOW CORRECT! */}
                     <div className="mt-5 p-5 bg-gradient-to-r from-emerald-50 to-teal-50 rounded-xl border-2 border-green-200">
                       <p className="text-right text-md font-bold text-green-700">
                         Total Dispatched Value:{" "}

@@ -1,4 +1,3 @@
-// src/Components/Godown/GodownAnalytics.jsx
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Sidebar from '../Sidebar/Sidebar';
@@ -21,7 +20,6 @@ ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend,
 
 export default function GodownAnalytics() {
   const navigate = useNavigate();
-
   const [data, setData] = useState(null);
   const [period, setPeriod] = useState('month');
   const [page, setPage] = useState(0);
@@ -52,7 +50,6 @@ export default function GodownAnalytics() {
     window.location.href = `${API_BASE_URL}/api/analytics/all/export`;
   };
 
-  // LOADING
   if (loading) {
     return (
       <div className="flex min-h-screen bg-gray-100 dark:bg-gray-900">
@@ -97,25 +94,22 @@ export default function GodownAnalytics() {
   const currentGodown = chart[page];
   const totalPages = chart.length;
 
-  // FIX: godownId in `totals` is NUMBER, in `chart` is STRING → convert
   const godownId = Number(currentGodown.godownId);
   const currentTotals = totals.find(t => t.godownId === godownId) || { intake: 0, outtake: 0 };
 
-  // BAR CHART
   const barData = {
     labels: currentGodown.labels,
     datasets: [
-      { label: 'Intake', data: currentGodown.intake, backgroundColor: 'rgba(34, 197, 94, 0.7)' },
-      { label: 'Outtake', data: currentGodown.outtake, backgroundColor: 'rgba(239, 68, 68, 0.7)' },
+      { label: 'In', data: currentGodown.intake, backgroundColor: 'rgba(34, 197, 94, 0.7)' },
+      { label: 'Out', data: currentGodown.outtake, backgroundColor: 'rgba(239, 68, 68, 0.7)' },
     ],
   };
 
-  // PIE CHART: Product-wise Intake vs Outtake
   const pieData = {
     labels: currentGodown.productNames,
     datasets: [
       {
-        label: 'Intake',
+        label: 'In',
         data: currentGodown.productIntake,
         backgroundColor: [
           '#10b981', '#34d399', '#6ee7b7', '#86efac', '#bbf7d0',
@@ -123,7 +117,7 @@ export default function GodownAnalytics() {
         ].slice(0, currentGodown.productNames.length),
       },
       {
-        label: 'Outtake',
+        label: 'Out',
         data: currentGodown.productOuttake,
         backgroundColor: [
           '#ef4444', '#f87171', '#fca5a5', '#fecaca', '#fee2e2',
@@ -182,13 +176,13 @@ export default function GodownAnalytics() {
           {/* Summary Cards */}
           <div className="grid grid-cols-1 mobile:grid-cols-3 gap-4 mb-8">
             <div className="bg-gradient-to-br from-green-50 to-green-100 dark:from-gray-800 dark:to-gray-700 p-5 mobile:p-6 rounded-xl shadow-lg">
-              <h3 className="text-xs mobile:text-sm font-medium text-gray-600 dark:text-gray-300">Total Intake</h3>
+              <h3 className="text-xs mobile:text-sm font-medium text-gray-600 dark:text-gray-300">Total In</h3>
               <p className="text-2xl mobile:text-4xl font-extrabold text-green-600 mt-1">
                 {currentTotals.intake}
               </p>
             </div>
             <div className="bg-gradient-to-br from-red-50 to-red-100 dark:from-gray-800 dark:to-gray-700 p-5 mobile:p-6 rounded-xl shadow-lg">
-              <h3 className="text-xs mobile:text-sm font-medium text-gray-600 dark:text-gray-300">Total Outtake</h3>
+              <h3 className="text-xs mobile:text-sm font-medium text-gray-600 dark:text-gray-300">Total Out</h3>
               <p className="text-2xl mobile:text-4xl font-extrabold text-red-600 mt-1">
                 {currentTotals.outtake}
               </p>
