@@ -249,9 +249,9 @@ export default function Billing() {
         customer_gstin: customer.gstin || '',
         customer_place: customer.place || '',
         customer_state_code: isIGST ? 'other' : '33',
-        through,
+        through: through || 'DIRECT',
         destination: destination || '',
-        bill_type: billType,
+        bill_type: billType,  // ← Keep only this one
         items: JSON.stringify(cart.map(item => ({
           productname: item.productname,
           hsn_code: item.hsn || '360410',

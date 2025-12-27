@@ -66,7 +66,7 @@ export default function InvoiceTemplate({ booking = {}, company = {}, states = [
   const igst = parseFloat(booking.igst_amount || 0);
   const netAmount = parseFloat(booking.net_amount || 0);
   const billNumber = booking.bill_no || '';
-  const billType = booking.bill_type || 'tax';
+  const billType = (booking.type || 'tax').toLowerCase(); // Ensure lowercase
   const isIGST = booking.customer_state_code !== '33';
 
   const totalCases = cart.reduce((sum, i) => sum + (parseInt(i.cases) || 0), 0);
@@ -90,8 +90,7 @@ export default function InvoiceTemplate({ booking = {}, company = {}, states = [
             {/* {company?.logo_url && <img src={company.logo_url} style={{ width: "100%", height: 90, objectFit: "contain" }} alt="Logo" />} */}
           </div>
           <div style={{ textAlign: "center", lineHeight: 1.4, width: "1000px" }}>
-            <div style={{ display: "inline-flex", justifyContent: "center", alignItems: "center",fontSize: 15, fontWeight: 900, textTransform: "uppercase", border: "1px solid #000", padding: "8px 10px", width: "auto", minWidth: "200px"
-            }}>
+            <div style={{ display: "inline-flex", justifyContent: "center", alignItems: "center", fontSize: 15, fontWeight: 900, textTransform: "uppercase", border: "1px solid #000", padding: "8px 10px", width: "auto", minWidth: "200px" }}>
               {billType === 'tax' ? 'TAX INVOICE' : 'BILL OF SUPPLY'}
             </div>
             <div style={{ fontSize: 28, fontWeight: 900, textTransform: "uppercase", marginTop: 8 }}>
@@ -117,7 +116,6 @@ export default function InvoiceTemplate({ booking = {}, company = {}, states = [
             {(customer.address || "").split("\n").map((line, i) => (
               <div key={i}>{line || "\u00A0"}</div>
             ))}
-            
             <div style={{ marginTop: 6 }}>
               Place of Supply : {getPlaceOfSupply()}
             </div>
@@ -207,12 +205,31 @@ export default function InvoiceTemplate({ booking = {}, company = {}, states = [
           <div style={{ width: 383, padding: 12, fontSize: 12 }}>
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <tbody>
-                <tr><td>Total</td><td style={{ textAlign: "right" }}>{subtotal.toFixed(2)}</td></tr>
-                {billType === 'tax' && !taxableValue && <tr><td>Taxable Value</td><td style={{ textAlign: "right" }}>{taxableValue.toFixed(2)}</td></tr>}
-                {billType === 'tax' && !isIGST && <tr><td>CGST 9%</td><td style={{ textAlign: "right" }}>{cgst.toFixed(2)}</td></tr>}
-                {billType === 'tax' && !isIGST && <tr><td>SGST 9%</td><td style={{ textAlign: "right" }}>{sgst.toFixed(2)}</td></tr>}
-                {billType === 'tax' && isIGST && <tr><td>IGST 18%</td><td style={{ textAlign: "right" }}>{igst.toFixed(2)}</td></tr>}
-                <tr></tr>
+                <tr>
+                  <td>Total</td>
+                  <td style={{ textAlign: "right" }}>{subtotal.toFixed(2)}</td>
+                </tr>
+
+                {/* Only show tax-related lines for TAX INVOICE */}
+                {billType === 'tax' && (
+                  <>
+                    <tr>
+                      <td>Taxable Value</td>
+                      <td style={{ textAlign: "right" }}>{taxableValue.toFixed(2)}</td>
+                    </tr>
+                    {!isIGST && (
+                      <>
+                        <tr><td>CGST 9%</td><td style={{ textAlign: "right" }}>{cgst.toFixed(2)}</td></tr>
+                        <tr><td>SGST 9%</td><td style={{ textAlign: "right" }}>{sgst.toFixed(2)}</td></tr>
+                      </>
+                    )}
+                    {isIGST && (
+                      <tr><td>IGST 18%</td><td style={{ textAlign: "right" }}>{igst.toFixed(2)}</td></tr>
+                    )}
+                  </>
+                )}
+
+                {/* Final Net Amount */}
                 <tr style={{ fontWeight: 800, borderTop: "1px solid #000" }}>
                   <td>NET AMOUNT</td>
                   <td style={{ textAlign: "right" }}>{netAmount.toFixed(2)}</td>
@@ -243,18 +260,18 @@ export default function InvoiceTemplate({ booking = {}, company = {}, states = [
           )}
           <div style={{ width: 383, padding: 12, fontSize: 14, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center" }}>
             <div>For {company?.company_name || "NISHA TRADERS"}</div>
-            <div style={{ marginTop: 1, width: 150, textAlign: "center" }}>
+            <div style={{ marginTop: 4, width: 150, textAlign: "center" }}>
               {company?.signature_url ? (
                 <img 
                   src={company.signature_url} 
-                  style={{ maxHeight: 60, maxWidth: "100%", objectFit: "contain" }} 
+                  style={{ maxHeight: 50, maxWidth: "100%", objectFit: "contain" }} 
                   alt="Signature"
                 />
               ) : (
                 <div style={{ borderTop: "1px solid #000", height: 70, width: "100%" }} />
               )}
             </div>
-            <div style={{ marginTop: 8, fontWeight: 700 }}>Partner / Manager</div>
+            <div style={{ fontWeight: 700 }}>Partner / Manager</div>
           </div>
         </div>
       </div>

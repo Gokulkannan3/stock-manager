@@ -1,4 +1,3 @@
-// src/pages/AllBookings/AllBookings.jsx
 import React, { useState, useEffect, useRef } from 'react';
 import Sidebar from '../Sidebar/Sidebar';
 import Logout from '../Logout';
@@ -24,8 +23,8 @@ export default function AllBillings() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 16;
   const [states, setStates] = useState([]);
-  const [companies, setCompanies] = useState([]); // All companies
-  const [selectedCompany, setSelectedCompany] = useState(null); // For current bill
+  const [companies, setCompanies] = useState([]);
+  const [selectedCompany, setSelectedCompany] = useState(null);
 
   const hiddenContainerRef = useRef(null);
   const rootRef = useRef(null);
@@ -58,12 +57,12 @@ export default function AllBillings() {
     loadData();
   }, [API_BASE_URL]);
 
-  // Search
   useEffect(() => {
     const query = searchQuery.toLowerCase().trim();
     const filtered = bookings.filter(b =>
       b.customer_name?.toLowerCase().includes(query) ||
-      b.bill_no?.toLowerCase().includes(query)
+      b.bill_no?.toLowerCase().includes(query) ||
+      b.type?.toLowerCase().includes(query)
     );
     setFilteredBookings(filtered);
     setCurrentPage(1);
@@ -85,28 +84,31 @@ export default function AllBillings() {
     setLoadingPDF(true);
     setPdfBlobUrl('');
 
-    // Find the correct company by company_name saved in booking
-    const billCompany = companies.find(c => 
+    const billCompany = companies.find(c =>
       c.company_name?.trim().toUpperCase() === (booking.company_name || '').trim().toUpperCase()
-    ) || companies[0]; // fallback to first
-
+    ) || companies[0];
     setSelectedCompany(billCompany);
 
+    // Create hidden container once
     if (!hiddenContainerRef.current) {
       hiddenContainerRef.current = document.createElement('div');
       hiddenContainerRef.current.style.position = 'absolute';
       hiddenContainerRef.current.style.left = '-9999px';
       hiddenContainerRef.current.style.top = '0';
       hiddenContainerRef.current.style.width = '210mm';
+      hiddenContainerRef.current.style.minHeight = '297mm';
       hiddenContainerRef.current.style.padding = '20px';
       hiddenContainerRef.current.style.background = 'white';
+      hiddenContainerRef.current.style.boxSizing = 'border-box';
       document.body.appendChild(hiddenContainerRef.current);
     }
 
-    if (rootRef.current) rootRef.current.unmount();
+    // Clear previous content
+    hiddenContainerRef.current.innerHTML = '';
 
-    rootRef.current = createRoot(hiddenContainerRef.current);
-    rootRef.current.render(
+    // Create new React root and render template
+    const root = createRoot(hiddenContainerRef.current);
+    root.render(
       <InvoiceTemplate
         booking={booking}
         company={billCompany || {}}
@@ -115,47 +117,54 @@ export default function AllBillings() {
       />
     );
 
+    // Save root reference for cleanup
+    rootRef.current = root;
+
+    // Wait for rendering to complete, then generate PDF
     setTimeout(async () => {
       try {
+        if (!hiddenContainerRef.current) {
+          setLoadingPDF(false);
+          return;
+        }
+
         const canvas = await html2canvas(hiddenContainerRef.current, {
           scale: 3,
           useCORS: true,
           logging: false,
+          backgroundColor: '#ffffff',
+          width: hiddenContainerRef.current.scrollWidth,
+          height: hiddenContainerRef.current.scrollHeight,
         });
+
         const imgData = canvas.toDataURL('image/png');
         const pdf = new jsPDF('p', 'mm', 'a4');
-        const width = pdf.internal.pageSize.getWidth();
-        const height = (canvas.height * width) / canvas.width;
-        pdf.addImage(imgData, 'PNG', 0, 0, width, height);
+        const pdfWidth = pdf.internal.pageSize.getWidth();
+        const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+
+        pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
         const blob = pdf.output('blob');
         const url = URL.createObjectURL(blob);
         setPdfBlobUrl(url);
       } catch (err) {
         console.error('PDF generation failed:', err);
-        alert('Failed to generate PDF');
+        alert('Failed to generate PDF preview');
       } finally {
         setLoadingPDF(false);
       }
-    }, 600);
+    }, 800); // Increased delay for reliable rendering
   };
 
   const downloadPDF = () => {
-    if (!pdfBlobUrl || !selectedBill) return;
+    if (!pdfBlobUrl || !selectedBill) {
+      alert('PDF not ready yet. Please wait...');
+      return;
+    }
     const link = document.createElement('a');
     link.href = pdfBlobUrl;
-    link.download = `${selectedBill.bill_no}.pdf`;
+    link.download = `${selectedBill.bill_no.replace(/[/\\?%*:|"<>]/g, '-')}.pdf`;
     link.click();
   };
-
-  useEffect(() => {
-    return () => {
-      if (rootRef.current) rootRef.current.unmount();
-      if (hiddenContainerRef.current?.parentNode) {
-        hiddenContainerRef.current.parentNode.removeChild(hiddenContainerRef.current);
-      }
-      if (pdfBlobUrl) URL.revokeObjectURL(pdfBlobUrl);
-    };
-  }, [pdfBlobUrl]);
 
   const formatDate = (dateString) => {
     if (!dateString) return '—';
@@ -163,6 +172,37 @@ export default function AllBillings() {
       day: '2-digit', month: 'short', year: 'numeric'
     });
   };
+
+  // Cleanup when modal closes
+  useEffect(() => {
+    if (!showModal) {
+      if (rootRef.current) {
+        rootRef.current.unmount();
+        rootRef.current = null;
+      }
+      if (pdfBlobUrl) {
+        URL.revokeObjectURL(pdfBlobUrl);
+        setPdfBlobUrl('');
+      }
+    }
+  }, [showModal, pdfBlobUrl]);
+
+  // Final cleanup on component unmount
+  useEffect(() => {
+    return () => {
+      if (rootRef.current) {
+        rootRef.current.unmount();
+        rootRef.current = null;
+      }
+      if (hiddenContainerRef.current?.parentNode) {
+        hiddenContainerRef.current.parentNode.removeChild(hiddenContainerRef.current);
+        hiddenContainerRef.current = null;
+      }
+      if (pdfBlobUrl) {
+        URL.revokeObjectURL(pdfBlobUrl);
+      }
+    };
+  }, [pdfBlobUrl]);
 
   if (loading) {
     return (
@@ -194,7 +234,7 @@ export default function AllBillings() {
             <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
             <input
               type="text"
-              placeholder="Search by customer or bill no..."
+              placeholder="Search by customer, bill no, or type (tax/supply)..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -208,9 +248,18 @@ export default function AllBillings() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-6">
             {paginatedBookings.map(b => (
               <div key={b.id} className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow hover:shadow-lg transition-shadow">
-                <p className="font-semibold text-sm md:text-base text-gray-900 dark:text-gray-100 truncate">
-                  {b.customer_name || '—'}
-                </p>
+                <div className="flex justify-between items-start">
+                  <p className="font-semibold text-sm md:text-base text-gray-900 dark:text-gray-100 truncate">
+                    {b.customer_name || '—'}
+                  </p>
+                  <span className={`text-xs px-2 py-1 rounded-full ${
+                    b.type === 'tax'
+                      ? 'bg-blue-100 text-blue-800'
+                      : 'bg-orange-100 text-orange-800'
+                  }`}>
+                    {b.type === 'tax' ? 'TAX' : 'SUPPLY'}
+                  </span>
+                </div>
                 <p className="text-xs md:text-sm text-gray-600 dark:text-gray-400">
                   Bill: <span className="font-mono">{b.bill_no}</span>
                 </p>
@@ -230,7 +279,6 @@ export default function AllBillings() {
             ))}
           </div>
 
-          {/* Pagination */}
           {totalPages > 1 && (
             <div className="flex justify-center items-center gap-2 mt-6">
               <button onClick={() => goToPage(currentPage - 1)} disabled={currentPage === 1}
@@ -262,7 +310,7 @@ export default function AllBillings() {
           <div className="flex flex-col h-full max-h-screen">
             <div className="flex justify-between items-center p-4 border-b dark:border-gray-700">
               <h2 className="text-lg md:text-xl font-bold text-gray-900 dark:text-gray-100">
-                Bill: {selectedBill.bill_no}
+                {selectedBill.type === 'tax' ? 'Tax Invoice' : 'Bill of Supply'} - {selectedBill.bill_no}
               </h2>
               <div className="flex gap-2">
                 <button onClick={downloadPDF}
