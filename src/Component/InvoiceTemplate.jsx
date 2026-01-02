@@ -66,7 +66,7 @@ export default function InvoiceTemplate({ booking = {}, company = {}, states = [
   const igst = parseFloat(booking.igst_amount || 0);
   const netAmount = parseFloat(booking.net_amount || 0);
   const billNumber = booking.bill_no || '';
-  const billType = (booking.type || 'tax').toLowerCase(); // Ensure lowercase
+  const billType = (booking.bill_type || 'tax').toLowerCase(); // 'tax' or 'supply'
   const isIGST = booking.customer_state_code !== '33';
 
   const totalCases = cart.reduce((sum, i) => sum + (parseInt(i.cases) || 0), 0);
@@ -80,18 +80,18 @@ export default function InvoiceTemplate({ booking = {}, company = {}, states = [
     return s ? `${s.code} - ${s.state_name}` : customer.place;
   };
 
-  const label = billType === 'tax' ? 'From' : 'From';
+  const invoiceTitle = billType === 'tax' ? 'TAX INVOICE' : 'BILL OF SUPPLY';
 
   return (
     <div style={{ padding: 2, background: "#fff", color: "#000", fontFamily: "Arial, sans-serif", boxSizing: "border-box" }}>
       <div style={{ border: "1px solid #000" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", borderBottom: "1px double #000", padding: "10px 20px" }}>
           <div style={{ width: "150px" }}>
-            {/* {company?.logo_url && <img src={company.logo_url} style={{ width: "100%", height: 90, objectFit: "contain" }} alt="Logo" />} */}
+            {/* Logo placeholder */}
           </div>
           <div style={{ textAlign: "center", lineHeight: 1.4, width: "1000px" }}>
-            <div style={{ display: "inline-flex", justifyContent: "center", alignItems: "center", fontSize: 15, fontWeight: 900, textTransform: "uppercase", border: "1px solid #000", padding: "8px 10px", width: "auto", minWidth: "200px" }}>
-              {billType === 'tax' ? 'TAX INVOICE' : 'BILL OF SUPPLY'}
+            <div style={{ display: "inline-flex", justifyContent: "center", alignItems: "center", fontSize: 15, fontWeight: 900, textTransform: "uppercase", border: "1px solid #000", padding: "8px 10px", minWidth: "200px" }}>
+              {invoiceTitle}
             </div>
             <div style={{ fontSize: 28, fontWeight: 900, textTransform: "uppercase", marginTop: 8 }}>
               {company?.company_name || "NISHA TRADERS"}
@@ -99,7 +99,7 @@ export default function InvoiceTemplate({ booking = {}, company = {}, states = [
             <div style={{ fontSize: 15 }}>{addrLine1}</div>
             <div style={{ fontSize: 15 }}>{addrLine2}</div>
             <div style={{ fontSize: 14, marginTop: 6, fontWeight: "bold" }}>
-              {label}: {company?.gstin || ""} &nbsp;&nbsp; 
+              GSTIN: {company?.gstin || ""} &nbsp;&nbsp; 
               Mobile: {company?.mobile || ""} &nbsp;&nbsp; 
               Email: {company?.email || ""}
             </div>
@@ -127,11 +127,12 @@ export default function InvoiceTemplate({ booking = {}, company = {}, states = [
             </div>
             <div style={{ marginTop: 6 }}>Through : {through}</div>
             <div style={{ marginTop: 6 }}>No. of Cases : {totalCases} Cases</div>
-            <div style={{ marginTop: 6 }}>{label} : {customer.gstin || "---"}</div>
+            <div style={{ marginTop: 6 }}>GSTIN : {customer.gstin || "---"}</div>
             <div style={{ marginTop: 6 }}>Destination : {destination || customer.place || "__________"}</div>
           </div>
         </div>
 
+        {/* Table remains the same */}
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, textAlign: "center" }}>
           <thead>
             <tr>
@@ -210,7 +211,7 @@ export default function InvoiceTemplate({ booking = {}, company = {}, states = [
                   <td style={{ textAlign: "right" }}>{subtotal.toFixed(2)}</td>
                 </tr>
 
-                {/* Only show tax-related lines for TAX INVOICE */}
+                {/* Tax lines only for TAX INVOICE */}
                 {billType === 'tax' && (
                   <>
                     <tr>
@@ -229,7 +230,6 @@ export default function InvoiceTemplate({ booking = {}, company = {}, states = [
                   </>
                 )}
 
-                {/* Final Net Amount */}
                 <tr style={{ fontWeight: 800, borderTop: "1px solid #000" }}>
                   <td>NET AMOUNT</td>
                   <td style={{ textAlign: "right" }}>{netAmount.toFixed(2)}</td>
@@ -243,6 +243,7 @@ export default function InvoiceTemplate({ booking = {}, company = {}, states = [
           Rupees {numberToWords(Math.round(netAmount))} Only
         </div>
 
+        {/* Footer - Terms vs Party Signature */}
         <div style={{ height: 110, display: "flex" }}>
           {billType === 'tax' ? (
             <div style={{ flex: 1, padding: 12, fontSize: 12, borderRight: "1px solid #000" }}>

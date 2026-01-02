@@ -257,7 +257,7 @@ export default function AllBillings() {
                       ? 'bg-blue-100 text-blue-800'
                       : 'bg-orange-100 text-orange-800'
                   }`}>
-                    {b.type === 'tax' ? 'TAX' : 'SUPPLY'}
+                    {b.type}
                   </span>
                 </div>
                 <p className="text-xs md:text-sm text-gray-600 dark:text-gray-400">

@@ -87,13 +87,15 @@ export default function Booking() {
   const [showPendingDropdown, setShowPendingDropdown] = useState(false);
 
   const searchInputRef = useRef(null);
+
   const styles = {
     input: { background: "linear-gradient(135deg, rgba(255,255,255,0.8), rgba(240,249,255,0.6))", backgroundDark: "linear-gradient(135deg, rgba(55,65,81,0.8), rgba(75,85,99,0.6))", backdropFilter: "blur(10px)", border: "1px solid rgba(2,132,199,0.3)", borderDark: "1px solid rgba(59,130,246,0.4)" },
     button: { background: "linear-gradient(135deg, rgba(2,132,199,0.9), rgba(14,165,233,0.95))", backgroundDark: "linear-gradient(135deg, rgba(59,130,246,0.9), rgba(37,99,235,0.95))", backdropFilter: "blur(15px)", border: "1px solid rgba(125,211,252,0.4)", borderDark: "1px solid rgba(147,197,253,0.4)", boxShadow: "0 15px 35px rgba(2,132,199,0.3), inset 0 1px 0 rgba(255,255,255,0.2)", boxShadowDark: "0 15px 35px rgba(59,130,246,0.4), inset 0 1px 0 rgba(255,255,255,0.1)" }
   };
 
-  const textClass = "text-black dark:text-white";
+  // Fixed: Define cardClass and textClass
   const cardClass = "bg-white dark:bg-gray-800 rounded-xl shadow-lg";
+  const textClass = "text-black dark:text-white";
   const tableText = "text-black dark:text-white";
 
   const capitalize = (str) => str?.toLowerCase().split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') || '';
@@ -235,19 +237,25 @@ export default function Booking() {
 
   const removeFromCart = (idx) => setCart(prev => prev.filter((_, i) => i !== idx));
 
+  // Safe calculation function
   const calculate = () => {
-    let subtotal = 0, totalCases = 0;
+    let subtotal = 0;
+    let totalCases = 0;
 
     cart.forEach(i => {
-      const amt = i.cases * i.per_case * i.rate_per_box * (1 - (i.discount || 0) / 100);
-      subtotal += amt;
-      totalCases += i.cases;
+      const cases = parseFloat(i.cases) || 0;
+      const perCase = parseFloat(i.per_case) || 1;
+      const rate = parseFloat(i.rate_per_box) || 0;
+      const discount = parseFloat(i.discount || 0) / 100;
+      const amount = cases * perCase * rate * (1 - discount);
+      subtotal += amount;
+      totalCases += cases;
     });
 
-    const packing = applyProcessingFee ? subtotal * (packingPercent / 100) : 0;
-    const taxableAmount = subtotal + packing;
-    const extraTaxable = parseFloat(taxableValue) || 0;
-    const discountAmt = taxableAmount * (additionalDiscount / 100);
+    const packing = applyProcessingFee ? subtotal * (parseFloat(packingPercent) || 3) / 100 : 0;
+    const extraTaxableAmt = parseFloat(taxableValue) || 0;
+    const taxableAmount = subtotal + packing + extraTaxableAmt;
+    const discountAmt = taxableAmount * (parseFloat(additionalDiscount) || 0) / 100;
     const netTaxable = taxableAmount - discountAmt;
 
     let cgst = 0, sgst = 0, igst = 0;
@@ -259,24 +267,26 @@ export default function Booking() {
     }
 
     const totalTax = cgst + sgst + igst;
-    const amountAfterTax = netTaxable + totalTax;
-    const grandTotal = Math.round(amountAfterTax + extraTaxable);
+    const grandTotal = Math.round(netTaxable + totalTax + extraTaxableAmt);
 
     return {
-      subtotal: subtotal.toFixed(2),
-      packing: packing.toFixed(2),
-      discountAmt: discountAmt.toFixed(2),
-      taxableAmount: netTaxable.toFixed(2),
-      cgst: cgst.toFixed(2),
-      sgst: sgst.toFixed(2),
-      igst: igst.toFixed(2),
-      totalTax: totalTax.toFixed(2),
-      extraTaxable: extraTaxable.toFixed(2),
+      subtotal: Number(subtotal.toFixed(2)),
+      packing: Number(packing.toFixed(2)),
+      discountAmt: Number(discountAmt.toFixed(2)),
+      taxableAmount: Number(netTaxable.toFixed(2)),
+      cgst: Number(cgst.toFixed(2)),
+      sgst: Number(sgst.toFixed(2)),
+      igst: Number(igst.toFixed(2)),
+      extraTaxable: Number(extraTaxableAmt.toFixed(2)),
       grandTotal,
       totalCases
     };
   };
-  const calc = calculate();
+
+  const calc = cart.length > 0 ? calculate() : {
+    subtotal: 0, packing: 0, discountAmt: 0, taxableAmount: 0,
+    cgst: 0, sgst: 0, igst: 0, extraTaxable: 0, grandTotal: 0, totalCases: 0
+  };
 
   const handleLoadChallan = async (challan) => {
     try {
@@ -319,7 +329,6 @@ export default function Booking() {
       );
       if (matchedGodown) setSelectedGodown(matchedGodown);
 
-      window.scrollTo({ top: 0, behavior: 'smooth' });
       setSuccess(`Challan ${challan.challan_number} loaded! Ready to generate bill.`);
       setShowPendingDropdown(false);
     } catch (err) {
@@ -334,113 +343,81 @@ export default function Booking() {
     }
 
     setLoading(true);
-    setError(''); 
+    setError('');
     setSuccess('');
 
     try {
-      if (fromChallan && challanId) {
-        const res = await fetch(`${API_BASE_URL}/api/challan/${challanId}/convert`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            items: cart.map(i => ({
-              id: i.id,
-              productname: i.productname,
-              brand: i.brand,
-              cases: i.cases,
-              per_case: i.per_case,
-              rate_per_box: i.rate_per_box,
-              discount_percent: i.discount || 0,
-              godown: i.godown
-            })),
-            customer_name: customer.name,
-            address: customer.address,
-            gstin: customer.gstin,
-            lr_number: customer.lr_number,
-            to: customer.to,
-            through: customer.through
-          })
-        });
+      const payload = {
+        customer_name: customer.name.trim(),
+        address: customer.address.trim(),
+        gstin: customer.gstin.trim(),
+        lr_number: customer.lr_number.trim(),
+        agent_name: customer.agent_name.trim() || 'DIRECT',
+        from: customer.from.trim() || 'SIVAKASI',
+        to: customer.to.trim(),
+        through: customer.through.trim(),
+        additional_discount: parseFloat(additionalDiscount) || 0,
+        packing_percent: parseFloat(packingPercent) || 3.0,
+        taxable_value: taxableValue ? parseFloat(taxableValue) : null,
+        stock_from: selectedGodown?.shortName || customer.from || 'SIVAKASI',
+        apply_processing_fee: applyProcessingFee,
+        apply_cgst: applyCGST,
+        apply_sgst: applySGST,
+        apply_igst: applyIGST,
+        from_challan: fromChallan,
+        challan_id: challanId,
+        is_direct_bill: !fromChallan,
+        items: cart.map(i => ({
+          id: Number(i.id),
+          productname: i.productname?.trim() || '',
+          brand: i.brand?.trim() || '',
+          cases: Number(i.cases) || 1,
+          per_case: Number(i.per_case) || 1,
+          discount_percent: parseFloat(i.discount || 0),
+          godown: i.godown?.trim() || 'SIVAKASI',
+          rate_per_box: parseFloat(i.rate_per_box) || 0
+        }))
+      };
 
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.message || 'Conversion failed');
+      const endpoint = fromChallan && challanId 
+        ? `${API_BASE_URL}/api/challan/${challanId}/convert`
+        : `${API_BASE_URL}/api/booking`;
 
-        const pdfPath = data.pdfUrl || data.pdfPath;
-        const pdfRes = await fetch(`${API_BASE_URL}${pdfPath}`);
-        const blob = await pdfRes.blob();
-        const url = URL.createObjectURL(blob);
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
 
-        setPdfBlobUrl(url);
-        setBillNumber(data.bill_number);
-        setShowPDFModal(true);
-        setSuccess(`Converted to ${data.bill_number} successfully!`);
-        setPendingChallans(prev => prev.filter(c => c.id !== challanId));
-        setFromChallan(false);
-        setChallanId(null);
-        setCart([]);
-      } else {
-        const payload = {
-          customer_name: customer.name,
-          address: customer.address,
-          gstin: customer.gstin,
-          lr_number: customer.lr_number,
-          agent_name: customer.agent_name || 'DIRECT',
-          from: customer.from,
-          to: customer.to,
-          through: customer.through,
-          additional_discount: additionalDiscount,
-          packing_percent: packingPercent,
-          taxable_value: taxableValue ? parseFloat(taxableValue) : null,
-          stock_from: selectedGodown?.shortName || customer.from,
-          apply_processing_fee: applyProcessingFee,
-          apply_cgst: applyCGST,
-          apply_sgst: applySGST,
-          apply_igst: applyIGST,
-          from_challan: false,
-          items: cart.map(i => ({
-            id: i.id,
-            productname: i.productname,
-            brand: i.brand,
-            cases: i.cases,
-            per_case: i.per_case,
-            discount_percent: i.discount || 0,
-            godown: i.godown,
-            rate_per_box: i.rate_per_box
-          })),
-          is_direct_bill: true
-        };
+      const data = await res.json();
 
-        const res = await fetch(`${API_BASE_URL}/api/booking`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.message || 'Failed to generate bill');
-
-        const pdfRes = await fetch(`${API_BASE_URL}${data.pdfPath}`);
-        const blob = await pdfRes.blob();
-        const url = URL.createObjectURL(blob);
-
-        setPdfBlobUrl(url);
-        setBillNumber(data.bill_number);
-        setShowPDFModal(true);
-        setSuccess(`Bill Created: ${data.bill_number}`);
+      // CRITICAL FIX: Only proceed if request was successful
+      if (!res.ok) {
+        throw new Error(data.message || 'Failed to generate bill');
       }
 
+      // Now safe to access data.pdfBase64
+      if (!data.pdfBase64) {
+        throw new Error('PDF not received from server');
+      }
+
+      setPdfBlobUrl(data.pdfBase64);
+      setBillNumber(data.bill_number || 'Unknown');
+      setShowPDFModal(true);
+      setSuccess(`Bill ${data.bill_number} created successfully!`);
+
+      // Reset form
+      setCart([]);
       setCustomer({ name: '', address: '', gstin: '', lr_number: '', agent_name: '', from: 'SIVAKASI', to: '', through: '' });
       setSelectedCustomer(null);
       setAdditionalDiscount(0);
       setTaxableValue('');
-      setApplyCGST(false);
-      setApplySGST(false);
-      setApplyIGST(false);
-      setCart([]);
+      setFromChallan(false);
+      setChallanId(null);
 
     } catch (err) {
       console.error('Submit Error:', err);
-      setError(err.message || 'Something went wrong');
+      setError(err.message || 'Failed to create bill');
     } finally {
       setLoading(false);
     }

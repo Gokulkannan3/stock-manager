@@ -59,23 +59,26 @@ export default function AllBookings() {
     setPdfBlobUrl('');
 
     try {
-      const res = await fetch(`${API_BASE_URL}${booking.pdf_path}`);
+      const res = await fetch(`${API_BASE_URL}/api/booking/pdf/${booking.id}`);
       if (!res.ok) throw new Error('Failed to load PDF');
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       setPdfBlobUrl(url);
     } catch (err) {
-      alert('Could not load PDF: ' + err.message);
+      alert('Could not load PDF');
     } finally {
       setLoadingPDF(false);
     }
   };
 
   const downloadPDF = () => {
-    if (!selectedBill) return;
+    if (!pdfBlobUrl || !selectedBill) {
+      alert('PDF not ready yet. Please wait...');
+      return;
+    }
     const link = document.createElement('a');
-    link.href = `${API_BASE_URL}${selectedBill.pdf_path}`;
-    link.download = `${selectedBill.bill_number}.pdf`;
+    link.href = pdfBlobUrl;
+    link.download = `${selectedBill.bill_number || 'bill'}.pdf`;
     link.click();
   };
 
