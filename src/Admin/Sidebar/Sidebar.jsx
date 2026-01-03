@@ -16,6 +16,7 @@ export default function Sidebar() {
   const [isTaxOpen, setIsTaxOpen] = useState(false);
 
   const userType = localStorage.getItem("userType") || "worker";
+  const userName = localStorage.getItem("username"); 
 
   // Dynamically set panel title
   const panelTitle = userType === "admin" ? "Admin Panel" : "User Panel";
@@ -130,8 +131,9 @@ export default function Sidebar() {
           isOpen ? "translate-x-0" : "-translate-x-full"
         } hundred:translate-x-0 mobile:w-64 w-64 z-40 shadow-2xl`}
       >
-        <div className="p-5 text-2xl font-extrabold border-b border-gray-700 flex items-center text-center justify-center bg-gradient-to-r from-blue-900 to-indigo-900">
+        <div className="p-5 text-2xl font-extrabold border-b border-gray-700 flex flex-col items-center text-center justify-center bg-gradient-to-r from-blue-900 to-indigo-900">
           {panelTitle}
+          <span className="font-semibold text-md capitalize mt-2 text-green-400">{userName}</span>
           <button className="hundred:hidden text-white" onClick={toggleSidebar}>
             <FaTimes size={24} />
           </button>

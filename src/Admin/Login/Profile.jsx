@@ -73,11 +73,11 @@ function ProfileContent() {
             </h2>
             <div className="space-y-2 text-lg mobile:text-base">
               <p>
-                <strong>Username:</strong>{' '}
+                <strong className='text-gray-900 dark:text-gray-100'>Username:</strong>{' '}
                 <span className="font-mono text-blue-600 dark:text-blue-400">{username}</span>
               </p>
               <p>
-                <strong>Role:</strong>{' '}
+                <strong className='text-gray-900 dark:text-gray-100'>Role:</strong>{' '}
                 <span className="capitalize font-medium text-green-600 dark:text-green-400">
                   {userType}
                 </span>
