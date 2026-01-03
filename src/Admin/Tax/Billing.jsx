@@ -337,7 +337,7 @@ export default function Billing() {
                     : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                 }`}
               >
-                BILL OF SUPPLY
+                COMPOSISTION INVOICE
               </button>
             </div>
             <p className="mt-4 text-xl font-semibold dark:text-white text-black">
@@ -595,7 +595,7 @@ export default function Billing() {
                 through,
                 destination,
                 bill_no: manualBillNo || billNumber,
-                bill_type: billType,
+                type: billType,
                 items: JSON.stringify(cart.map(i => ({
                   productname: i.productname,
                   cases: i.cases,

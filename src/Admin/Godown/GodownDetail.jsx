@@ -558,23 +558,7 @@ export default function GodownDetail() {
                   <div className="mb-4 mobile:mb-2 grid grid-cols-2 gap-2 text-xs mobile:text-[10px]">
                     <div><span className="font-medium text-sm text-gray-700 dark:text-gray-300">Per Case: {s.per_case}</span></div>
                   </div>
-                  <div className="flex justify-center gap-2 mobile:gap-1">
-                    <button
-                      onClick={() => openAddModal(s)}
-                      className="flex w-20 justify-center items-center rounded-md px-2 py-1 mobile:px-1 mobile:py-0.5 text-xs mobile:text-lg font-semibold text-white shadow-sm hover:bg-indigo-700"
-                      style={{ background: styles.button.background, border: styles.button.border, boxShadow: styles.button.boxShadow }}
-                    >
-                      In
-                    </button>
-                    {activeTab === 'current' && (
-                      <button
-                        onClick={() => openTakeModal(s)}
-                        className="flex w-20 justify-center items-center rounded-md px-2 py-1 mobile:px-1 mobile:py-0.5 text-xs mobile:text-lg font-semibold text-white shadow-sm hover:bg-indigo-700"
-                        style={{ background: styles.button.background, border: styles.button.border, boxShadow: styles.button.boxShadow }}
-                      >
-                        Out
-                      </button>
-                    )}
+                  <div className="flex justify-end gap-2 mobile:gap-1">
                     <button
                       onClick={() => fetchStockHistory(s.id)}
                       className="flex w-20 justify-center items-center rounded-md px-2 py-1 mobile:px-1 mobile:py-0.5 text-xs mobile:text-lg font-semibold text-white shadow-sm hover:bg-indigo-700"
@@ -726,7 +710,7 @@ export default function GodownDetail() {
             <h2 className="text-lg font-bold text-black dark:text-white">
               Stock History – {selectedStock?.productname} ({capitalize(selectedStock?.brand || '')})
             </h2>
-            <button onClick={() => setHistoryModalIsOpen(false)}>
+            <button className='text-black dark:text-white' onClick={() => setHistoryModalIsOpen(false)}>
               <FaTimes />
             </button>
           </div>

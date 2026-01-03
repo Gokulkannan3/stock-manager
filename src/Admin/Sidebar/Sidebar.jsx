@@ -17,12 +17,15 @@ export default function Sidebar() {
 
   const userType = localStorage.getItem("userType") || "worker";
 
+  // Dynamically set panel title
+  const panelTitle = userType === "admin" ? "Admin Panel" : "User Panel";
+
   // ────── Permission Matrix ──────
   const can = {
     inventory: userType === "admin",
     godown: ["admin", "agent", "worker"].includes(userType),
     billing: userType === "admin",
-    accounts: ["admin", "worker"].includes(userType), // Ledger, Dispatch, Payments
+    accounts: ["admin", "worker"].includes(userType),
     analysis: userType === "admin",
     search: ["admin", "agent", "worker"].includes(userType),
     analytics: userType === "admin",
@@ -114,7 +117,7 @@ export default function Sidebar() {
       {/* Hamburger for mobile */}
       {!isOpen && (
         <button
-          className="hundred:hidden fixed top-4 left-4 z-50 text-white bg-gray-800 p-2 rounded-md"
+          className="hundred:hidden fixed top-4 left-4 z-50 text-white bg-gray-800 p-2 rounded-md shadow-lg"
           onClick={toggleSidebar}
         >
           <FaBars size={24} />
@@ -123,18 +126,18 @@ export default function Sidebar() {
 
       {/* Sidebar */}
       <div
-        className={`fixed top-0 left-0 h-screen bg-black/80 text-white flex flex-col transition-transform duration-300 ease-in-out ${
+        className={`fixed top-0 left-0 h-screen bg-black/90 text-white flex flex-col transition-transform duration-300 ease-in-out ${
           isOpen ? "translate-x-0" : "-translate-x-full"
-        } hundred:translate-x-0 mobile:w-64 w-64 z-40`}
+        } hundred:translate-x-0 mobile:w-64 w-64 z-40 shadow-2xl`}
       >
-        <div className="p-4 text-xl font-bold border-b border-gray-700 flex items-center justify-between">
-          Admin Panel
+        <div className="p-5 text-2xl font-extrabold border-b border-gray-700 flex items-center text-center justify-center bg-gradient-to-r from-blue-900 to-indigo-900">
+          {panelTitle}
           <button className="hundred:hidden text-white" onClick={toggleSidebar}>
-            <FaTimes size={20} />
+            <FaTimes size={24} />
           </button>
         </div>
 
-        <nav className="flex-1 mt-4 overflow-y-auto">
+        <nav className="flex-1 mt-4 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-700">
           <ul>
             {navItems.map((item) => {
               if (!item.allowed) return null;
@@ -146,7 +149,7 @@ export default function Sidebar() {
                   {item.subItems ? (
                     <div>
                       <div
-                        className="py-3 px-6 text-sm font-bold text-gray-300 flex items-center justify-between cursor-pointer hover:bg-black/50 transition-colors"
+                        className="py-3 px-6 text-sm font-bold text-gray-300 flex items-center justify-between cursor-pointer hover:bg-white/10 transition-colors rounded-md mx-2"
                         onClick={toggle}
                       >
                         <span className="flex items-center">
@@ -157,8 +160,8 @@ export default function Sidebar() {
                       </div>
 
                       <ul
-                        className={`pl-4 overflow-hidden transition-all duration-300 ease-in-out ${
-                          sectionOpen ? "max-h-96" : "max-h-0"
+                        className={`pl-6 overflow-hidden transition-all duration-300 ease-in-out ${
+                          sectionOpen ? "max-h-96 opacity-100" : "max-h-0 opacity-0"
                         }`}
                       >
                         {item.subItems.map((sub) => (
@@ -166,8 +169,8 @@ export default function Sidebar() {
                             <NavLink
                               to={sub.path}
                               className={({ isActive }) =>
-                                `flex items-center py-2 px-6 text-sm font-medium hover:bg-black/50 transition-colors ${
-                                  isActive ? "bg-gray-900 text-white" : ""
+                                `flex items-center py-2 px-6 text-sm font-medium hover:bg-white/10 transition-colors rounded-md mx-2 ${
+                                  isActive ? "bg-white/20 text-white font-semibold" : "text-gray-300"
                                 }`
                               }
                               onClick={() => setIsOpen(false)}
@@ -183,8 +186,8 @@ export default function Sidebar() {
                     <NavLink
                       to={item.path}
                       className={({ isActive }) =>
-                        `flex items-center py-3 px-6 text-sm font-medium hover:bg-black/50 transition-colors ${
-                          isActive ? "bg-gray-900 text-white" : ""
+                        `flex items-center py-3 px-6 text-sm font-medium hover:bg-white/10 transition-colors rounded-md mx-2 ${
+                          isActive ? "bg-white/20 text-white font-semibold" : "text-gray-300"
                         }`
                       }
                       onClick={() => setIsOpen(false)}
@@ -198,12 +201,17 @@ export default function Sidebar() {
             })}
           </ul>
         </nav>
+
+        {/* Optional: Show user type at bottom */}
+        <div className="p-4 text-xs text-center text-gray-400 border-t border-gray-700">
+          Logged in as: <span className="font-medium text-gray-200 capitalize flex text-center">{userType}</span>
+        </div>
       </div>
 
-      {/* Backdrop */}
+      {/* Backdrop for mobile */}
       {isOpen && (
         <div
-          className="hundred:hidden fixed inset-0 bg-black/50 z-30"
+          className="hundred:hidden fixed inset-0 bg-black/60 z-30"
           onClick={toggleSidebar}
         />
       )}

@@ -66,7 +66,7 @@ export default function InvoiceTemplate({ booking = {}, company = {}, states = [
   const igst = parseFloat(booking.igst_amount || 0);
   const netAmount = parseFloat(booking.net_amount || 0);
   const billNumber = booking.bill_no || '';
-  const billType = (booking.bill_type || 'tax').toLowerCase(); // 'tax' or 'supply'
+  const billType = (booking.type || 'tax').toLowerCase();
   const isIGST = booking.customer_state_code !== '33';
 
   const totalCases = cart.reduce((sum, i) => sum + (parseInt(i.cases) || 0), 0);
